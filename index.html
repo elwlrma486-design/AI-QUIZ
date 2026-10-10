@@ -332,7 +332,7 @@
             try {
                 const { error } = await supabaseClient.auth.signInWithOAuth({
                     provider: 'google',
-                    options: { redirectTo: 'http://localhost:5500', queryParams: { prompt: 'select_account' } }
+                    options: { redirectTo: 'https://elwlrma486-design.github.io/AI-QUIZ/', queryParams: { prompt: 'select_account' } }
                 });
                 if (error) throw error;
             } catch (err) {
