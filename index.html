@@ -131,20 +131,6 @@
         .modal-card { background: white; width: 90%; max-width: 550px; padding: 25px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); position: relative; max-height: 85vh; overflow-y: auto; }
         .close-modal { position: absolute; top: 15px; right: 20px; background: none; border: none; font-size: 20px; color: #7f8c8d; cursor: pointer; padding: 0; }
         .close-modal:hover { color: #2c3e50; }
-
-        .info-tip-box {
-            background-color: #eef7fe;
-            border: 1px solid #bee3f8;
-            color: #2b6cb0;
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
     </style>
 </head>
 <body>
@@ -166,13 +152,13 @@
             </div>
         </div>
 
-        <h2>환영합니다, <span id="user-email"></span> </h2>
+        <h2>환영합니다, <span id="user-email"></span>님!</h2>
         <div style="display: flex; gap: 10px; margin-top: 10px;">
             <button class="danger" onclick="handleLogout()">로그아웃</button>
             <button class="danger" style="background-color: #c0392b;" onclick="deleteAccountData()">계정 데이터 삭제</button>
         </div>
 
-        <hr style="margin: 25px 0; border: none; border-top: 1px solid #eee;"ㅁ
+        <hr style="margin: 25px 0; border: none; border-top: 1px solid #eee;">
 
         <div id="tab-menu-container" class="tab-menu">
             <button class="tab-btn active" onclick="switchTab('study-tab')">PDF 업로드 및 학습</button>
@@ -202,15 +188,13 @@
 
         <div id="files-tab" class="tab-content hidden">
             <h3>📁 생성된 학습파일 및 폴더 관리</h3>
-            
-            <div class="info-tip-box">
-                💡 패턴업로드 및 분석 시 퀴즈 생성속도가 훨씬 빨라져요!
-            </div>
-
             <p style="font-size: 13px; color: #666;">최상위 폴더를 만들거나 하위 폴더를 추가하여 체계적으로 관리할 수 있습니다.</p>
             
-            <div style="margin: 15px 0;">
+            <div style="margin: 15px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                 <button class="secondary" onclick="createNewFolder(null)">📁 최상위 새 폴더 만들기</button>
+                <div style="font-size: 12.5px; color: #555; font-weight: 500; background: #f1f2f6; padding: 6px 12px; border-radius: 6px; border: 1px solid #e1e4ed;">
+                    💡 패턴 업로드 및 분석 시 퀴즈 생성 속도가 훨씬 빨라져요!
+                </div>
             </div>
 
             <div id="folders-container" style="margin-top: 15px;"></div>
@@ -322,20 +306,6 @@
             await checkSession();
         });
 
-        // 전역 범위에 로그인 함수 명시적 등록
-        window.handleGoogleLogin = async function handleGoogleLogin() {
-            try {
-                const redirectUri = window.location.origin + window.location.pathname;
-                const { error } = await supabaseClient.auth.signInWithOAuth({
-                    provider: 'google',
-                    options: { redirectTo: redirectUri, queryParams: { prompt: 'select_account' } }
-                });
-                if (error) throw error;
-            } catch (err) {
-                alert("로그인 오류: " + err.message);
-            }
-        };
-
         function switchTab(tabId) {
             if (activeTabId) {
                 tabScrollPositions[activeTabId] = window.scrollY || document.documentElement.scrollTop;
@@ -365,16 +335,16 @@
         function renderTabsHeader() {
             const container = document.getElementById('tab-menu-container');
             container.innerHTML = `
-                <button class="tab-btn \${activeTabId === 'study-tab' ? 'active' : ''}" onclick="switchTab('study-tab')">PDF 업로드 및 학습</button>
-                <button class="tab-btn \${activeTabId === 'files-tab' ? 'active' : ''}" onclick="switchTab('files-tab')">생성된 학습파일</button>
+                <button class="tab-btn ${activeTabId === 'study-tab' ? 'active' : ''}" onclick="switchTab('study-tab')">PDF 업로드 및 학습</button>
+                <button class="tab-btn ${activeTabId === 'files-tab' ? 'active' : ''}" onclick="switchTab('files-tab')">생성된 학습파일</button>
             `;
 
             openTabs.forEach(tab => {
                 const btn = document.createElement('button');
-                btn.className = `tab-btn \${activeTabId === tab.id ? 'active' : ''}`;
+                btn.className = `tab-btn ${activeTabId === tab.id ? 'active' : ''}`;
                 btn.innerHTML = `
                     <span onclick="switchTab('${tab.id}')">${tab.title}</span>
-                    <span class="tab-close-x" onclick="event.stopPropagation(); closeDynamicTab('\${tab.id}')">&times;</span>
+                    <span class="tab-close-x" onclick="event.stopPropagation(); closeDynamicTab('${tab.id}')">&times;</span>
                 `;
                 container.appendChild(btn);
             });
@@ -419,6 +389,19 @@
             }
         }
 
+        async function handleGoogleLogin() {
+            try {
+                const redirectUri = window.location.origin + window.location.pathname;
+                const { error } = await supabaseClient.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: { redirectTo: redirectUri, queryParams: { prompt: 'select_account' } }
+                });
+                if (error) throw error;
+            } catch (err) {
+                alert("로그인 오류: " + err.message);
+            }
+        }
+
         async function handleLogout() {
             try {
                 await supabaseClient.auth.signOut({ scope: 'local' });
@@ -438,7 +421,7 @@
                 await supabaseClient.from('user_ai_keys').delete().eq('user_id', currentUser.id);
                 await supabaseClient.from('study_data').delete().eq('user_id', currentUser.id);
                 if (currentUser) {
-                    localStorage.removeItem(`study_backup_\${currentUser.id}`);
+                    localStorage.removeItem(`study_backup_${currentUser.id}`);
                 }
                 alert("모든 계정 데이터가 완전 삭제되었습니다.");
                 await handleLogout();
@@ -468,7 +451,7 @@
                     trash_bin: trashBin,
                     updated_at: new Date().toISOString()
                 };
-                localStorage.setItem(`study_backup_\${currentUser.id}`, JSON.stringify(payload));
+                localStorage.setItem(`study_backup_${currentUser.id}`, JSON.stringify(payload));
                 await supabaseClient.from('study_data').upsert(payload, { onConflict: 'user_id' });
             } catch (err) {
                 console.error("데이터 저장 중 예외:", err);
@@ -485,12 +468,12 @@
                     studyParts = data.study_parts || [];
                     folders = data.folders || [];
                     trashBin = data.trash_bin || [];
-                    localStorage.setItem(`study_backup_\${currentUser.id}`, JSON.stringify(data));
+                    localStorage.setItem(`study_backup_${currentUser.id}`, JSON.stringify(data));
                     hasLoaded = true;
                 }
 
                 if (!hasLoaded) {
-                    const localBackup = localStorage.getItem(`study_backup_\${currentUser.id}`);
+                    const localBackup = localStorage.getItem(`study_backup_${currentUser.id}`);
                     if (localBackup) {
                         const parsed = JSON.parse(localBackup);
                         studyParts = parsed.study_parts || [];
@@ -583,7 +566,7 @@
                     try {
                         const response = await fetch('https://api.openai.com/v1/chat/completions', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer \${apiKey}` },
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
                             body: JSON.stringify({ model: m, messages: [{ role: 'user', content: 'test' }], max_tokens: 1 })
                         });
                         if (response.ok) return { success: true, activeModel: m };
@@ -614,7 +597,7 @@
                     try {
                         const response = await fetch('https://api.x.ai/v1/chat/completions', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer \${apiKey}` },
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
                             body: JSON.stringify({ model: m, messages: [{ role: 'user', content: 'test' }], max_tokens: 1 })
                         });
                         if (response.ok) return { success: true, activeModel: m };
@@ -623,7 +606,7 @@
                 return { success: true, activeModel: 'grok-beta' };
             } else if (provider === 'gemini') {
                 try {
-                    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=\${apiKey}`);
+                    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
                     const listData = await listRes.json();
                     if (!listRes.ok || !listData.models) return { success: false, activeModel: 'gemini-1.5-flash' };
 
@@ -652,11 +635,11 @@
         async function verifyApiKey(provider, apiKey) {
             try {
                 if (provider === 'gemini') {
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=\${apiKey}`);
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
                     return response.ok;
                 } else if (provider === 'openai') {
                     const response = await fetch('https://api.openai.com/v1/models', {
-                        headers: { 'Authorization': `Bearer \${apiKey}` }
+                        headers: { 'Authorization': `Bearer ${apiKey}` }
                     });
                     return response.ok;
                 } else if (provider === 'claude') {
@@ -673,7 +656,7 @@
                     return response.ok;
                 } else if (provider === 'grok') {
                     const response = await fetch('https://api.x.ai/v1/models', {
-                        headers: { 'Authorization': `Bearer \${apiKey}` }
+                        headers: { 'Authorization': `Bearer ${apiKey}` }
                     });
                     return response.ok;
                 }
@@ -775,7 +758,7 @@
                     const badge = document.createElement('div');
                     badge.className = 'ai-status-badge';
                     badge.innerHTML = `
-                        <span class="mini-dot \${currentStatus === 'exhausted' ? 'exhausted' : ''}"></span>
+                        <span class="mini-dot ${currentStatus === 'exhausted' ? 'exhausted' : ''}"></span>
                         ${item.priority}순위 [${detectedModel}]
                     `;
                     statusListContainer.appendChild(badge);
@@ -785,13 +768,13 @@
                         div.className = 'key-item';
                         div.innerHTML = `
                             <div>
-                                <span class="\${currentStatus === 'exhausted' ? 'status-dot exhausted' : 'status-dot'}"></span>
+                                <span class="${currentStatus === 'exhausted' ? 'status-dot exhausted' : 'status-dot'}"></span>
                                 <strong>[${item.provider.toUpperCase()}]</strong> 순위: ${item.priority} 
-                                <span style="font-size: 12px; color: \${currentStatus === 'exhausted' ? '#e74c3c' : '#27ae60'}; font-weight: bold;">
-                                    (\${currentStatus === 'exhausted' ? '모든 버전 토큰 소진' : '정상'})
+                                <span style="font-size: 12px; color: ${currentStatus === 'exhausted' ? '#e74c3c' : '#27ae60'}; font-weight: bold;">
+                                    (${currentStatus === 'exhausted' ? '모든 버전 토큰 소진' : '정상'})
                                 </span>
                             </div>
-                            <button class="danger" style="padding: 5px 10px; font-size: 12px;" onclick="deleteApiKey('\${item.id}')">삭제</button>
+                            <button class="danger" style="padding: 5px 10px; font-size: 12px;" onclick="deleteApiKey('${item.id}')">삭제</button>
                         `;
                         container.appendChild(div);
                     }
@@ -846,7 +829,7 @@
                 return;
             }
             let fileNames = Array.from(files).map(f => f.name).join(", ");
-            listContainer.textContent = `선택된 파일 (${files.length}/3):${fileNames}`;
+            listContainer.textContent = `선택된 파일 (${files.length}/3): ${fileNames}`;
         }
 
         function startPdfTimerProgress(estimatedSeconds) {
@@ -860,7 +843,7 @@
             
             let elapsedSeconds = 0;
             fill.style.width = '3%';
-            percentText.textContent = `3% (남은 시간: 약 \${estimatedSeconds}초)`;
+            percentText.textContent = `3% (남은 시간: 약 ${estimatedSeconds}초)`;
             statusTextEl.textContent = `📄 대용량 PDF 텍스트 및 OCR 추출 중...`;
 
             pdfProgressInterval = setInterval(() => {
@@ -868,7 +851,7 @@
                 const remainingSeconds = Math.max(1, estimatedSeconds - elapsedSeconds);
                 const percent = Math.min(96, Math.round((elapsedSeconds / estimatedSeconds) * 93) + 3);
                 fill.style.width = percent + '%';
-                percentText.textContent = `${percent}\% (남은 시간: 약 ${remainingSeconds}초)`;
+                percentText.textContent = `${percent}% (남은 시간: 약 ${remainingSeconds}초)`;
             }, 1000);
         }
 
@@ -907,7 +890,7 @@
 
             try {
                 let combinedText = "";
-                let firstFileName = fileInput.files[0].name.replace(/\.[^/.]+$/, "");
+                let firstFileName = fileInput.files[0].name.replace(/\.[^/.]+\$/, "");
 
                 for (let i = 0; i < fileInput.files.length; i++) {
                     const file = fileInput.files[i];
@@ -932,7 +915,7 @@
                             pageText = "[도해/그림 OCR 인식 영역]\n" + text;
                         }
 
-                        combinedText += `--- [File: ${file.name} Page${p}] ---\n` + pageText + "\n\n";
+                        combinedText += `--- [File: ${file.name} Page ${p}] ---\n` + pageText + "\n\n";
                     }
                 }
 
@@ -959,7 +942,7 @@
                 await saveStudyDataToDB();
                 renderStudyParts();
                 
-                alert(`✅ 학습이 완료되고 안전하게 저장되었습니다! '생성된 학습파일' 탭에서 [\${firstFileName}]을 확인하세요.`);
+                alert(`✅ 학습이 완료되고 안전하게 저장되었습니다! '생성된 학습파일' 탭에서 [${firstFileName}]을 확인하세요.`);
                 fileInput.value = "";
                 document.getElementById('selected-files-list').innerHTML = "";
 
@@ -1003,12 +986,12 @@
                             const page = await pdf.getPage(p);
                             const textContent = await page.getTextContent();
                             let pageText = textContent.items.map(item => item.str).join(" ");
-                            patternCombinedText += `--- [Pattern PDF: ${file.name} Page${p}] ---\n` + pageText + "\n\n";
+                            patternCombinedText += `--- [Pattern PDF: ${file.name} Page ${p}] ---\n` + pageText + "\n\n";
                         }
                     } else if (file.type.startsWith('image/')) {
                         const imageURL = URL.createObjectURL(file);
                         const { data: { text } } = await Tesseract.recognize(imageURL, 'eng+kor');
-                        patternCombinedText += `--- [Pattern Image: \${file.name}] ---\n` + text + "\n\n";
+                        patternCombinedText += `--- [Pattern Image: ${file.name}] ---\n` + text + "\n\n";
                     }
                 }
 
@@ -1023,7 +1006,7 @@
                 await saveStudyDataToDB();
                 renderStudyParts();
 
-                alert(`✅ 파일(\${uploadedFileNames.join(", ")}) 추가 업로드 및 저장 완료!\n이제 [분석하기] 버튼을 눌러 추가 분석을 진행하세요.`);
+                alert(`✅ 파일(${uploadedFileNames.join(", ")}) 추가 업로드 및 저장 완료!\n이제 [분석하기] 버튼을 눌러 추가 분석을 진행하세요.`);
 
             } catch (err) {
                 alert("파일 처리 중 오류 발생: " + err.message);
@@ -1037,7 +1020,7 @@
             const part = studyParts.find(p => p.id === partId);
             if (!part || !part.isUploaded || part.isAnalyzed) return;
 
-            const btnEl = document.getElementById(`analyze-action-btn-\${part.id}`);
+            const btnEl = document.getElementById(`analyze-action-btn-${part.id}`);
             if (btnEl) {
                 btnEl.textContent = "분석중...";
                 btnEl.disabled = true;
@@ -1063,7 +1046,7 @@
 이 문서에서 지문의 형태(예: 가,나,다,라 보기형), 문항 구조, 함정 유형, 정답 제시 방식 등의 '출제 형식/스타일'만 철저히 분석하고 요약해 주세요.
 
 [누적 참조 문서 및 캡쳐 내용]
-\${part.patternText.substring(0, 15000)}
+${part.patternText.substring(0, 15000)}
                 `;
 
                 for (let i = 0; i < keys.length; i++) {
@@ -1093,7 +1076,7 @@
                 await saveStudyDataToDB();
                 renderStudyParts();
 
-                alert(`✅ [\${part.name}] 패턴 형식 분석 및 저장 완료!`);
+                alert(`✅ [${part.name}] 패턴 형식 분석 및 저장 완료!`);
 
             } catch (err) {
                 alert("패턴 분석 중 오류 발생: " + err.message);
@@ -1106,7 +1089,7 @@
 
         async function callAIWithKeyGeneric(keyItem, prompt) {
             if (keyItem.provider === 'gemini') {
-                const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=\${keyItem.api_key}`);
+                const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${keyItem.api_key}`);
                 const listData = await listRes.json();
                 if (!listRes.ok || !listData.models) throw new Error("API 키 검증 실패");
 
@@ -1140,7 +1123,7 @@
                         }
                     } catch (err) { modelError = err.message; }
                 }
-                throw new Error(`Gemini 모델 호출 실패 (\${modelError})`);
+                throw new Error(`Gemini 모델 호출 실패 (${modelError})`);
 
             } else if (keyItem.provider === 'openai') {
                 const lockedModel = activeModelNames[keyItem.id];
@@ -1151,7 +1134,7 @@
                     try {
                         const response = await fetch('https://api.openai.com/v1/chat/completions', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer \${keyItem.api_key}` },
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${keyItem.api_key}` },
                             body: JSON.stringify({ model: modelName, messages: [{ role: 'user', content: prompt }] })
                         });
                         const data = await response.json();
@@ -1193,7 +1176,7 @@
                     try {
                         const response = await fetch('https://api.x.ai/v1/chat/completions', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer \${keyItem.api_key}` },
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${keyItem.api_key}` },
                             body: JSON.stringify({ model: modelName, messages: [{ role: 'user', content: prompt }] })
                         });
                         const data = await response.json();
@@ -1244,21 +1227,21 @@
 
                     folderDiv.innerHTML = `
                         <div class="folder-header">
-                            <div class="folder-title" onclick="editFolderName(\${folder.id})" title="클릭하여 폴더명 변경" style="cursor:pointer;">
+                            <div class="folder-title" onclick="editFolderName(${folder.id})" title="클릭하여 폴더명 변경" style="cursor:pointer;">
                                 📁 <span>${folder.name}</span> (${folderParts.length}개)
                             </div>
                             <div style="display: flex; gap: 4px;">
-                                <button class="secondary" style="padding: 2px 6px; font-size: 10px;" onclick="createNewFolder(\${folder.id})">+ 하위폴더</button>
-                                <button class="danger" style="padding: 2px 6px; font-size: 10px;" onclick="deleteFolder(\${folder.id})">삭제</button>
+                                <button class="secondary" style="padding: 2px 6px; font-size: 10px;" onclick="createNewFolder(${folder.id})">+ 하위폴더</button>
+                                <button class="danger" style="padding: 2px 6px; font-size: 10px;" onclick="deleteFolder(${folder.id})">삭제</button>
                             </div>
                         </div>
-                        <div style="margin-top: 10px;">\${partsHtml || '<div style="font-size: 12px; color: #aaa; padding: 2px 0;">폴더가 비어 있습니다. 아래 셀렉트 박스에서 이동해 보세요.</div>'}</div>
-                        <div class="sub-folder-container" id="sub-folder-container-\${folder.id}"></div>
+                        <div style="margin-top: 10px;">${partsHtml || '<div style="font-size: 12px; color: #aaa; padding: 2px 0;">폴더가 비어 있습니다. 아래 셀렉트 박스에서 이동해 보세요.</div>'}</div>
+                        <div class="sub-folder-container" id="sub-folder-container-${folder.id}"></div>
                     `;
 
                     containerEl.appendChild(folderDiv);
 
-                    const subContainer = folderDiv.querySelector(`#sub-folder-container-\${folder.id}`);
+                    const subContainer = folderDiv.querySelector(`#sub-folder-container-${folder.id}`);
                     renderFolderNode(folder.id, subContainer);
                 });
             }
@@ -1283,9 +1266,9 @@
 
                 unassignedDiv.innerHTML = `
                     <div class="folder-header">
-                        <div class="folder-title">📂 미분류 학습 파일 (\${unassignedParts.length}개)</div>
+                        <div class="folder-title">📂 미분류 학습 파일 (${unassignedParts.length}개)</div>
                     </div>
-                    <div style="margin-top: 10px;">\${unassignedHtml || '<div style="font-size: 12px; color: #aaa;">미분류 파일이 없습니다.</div>'}</div>
+                    <div style="margin-top: 10px;">${unassignedHtml || '<div style="font-size: 12px; color: #aaa;">미분류 파일이 없습니다.</div>'}</div>
                 `;
                 foldersContainer.appendChild(unassignedDiv);
             }
@@ -1320,7 +1303,7 @@
                 analyzeBtnDisabled = false;
             }
 
-            let compareBtnHtml = part.isAnalyzed ? `<button class="compare-btn" onclick="openComparisonModal(\${part.id})">📊 비교</button>` : '';
+            let compareBtnHtml = part.isAnalyzed ? `<button class="compare-btn" onclick="openComparisonModal(${part.id})">📊 비교</button>` : '';
             let folderSelectOptions = buildFolderSelectOptions(part.id);
 
             let subQuizzesHtml = '';
@@ -1331,9 +1314,9 @@
                     let typeLabel = quiz.type === 'multiple' ? '5지선다' : quiz.type === 'ox' ? 'O/X' : '주관식';
                     let resultBtnHtml = (quiz.hasCompleted && quiz.resultHtml) ? `<button class="result-btn" onclick="event.stopPropagation(); openResultTab('${part.id}', '${quiz.id}')">📊 결과</button>` : '';
                     subQuizzesHtml += `
-                        <div class="sub-quiz-item" onclick="openExamTab(${part.id},${quiz.id})">
+                        <div class="sub-quiz-item" onclick="openExamTab(${part.id}, ${quiz.id})">
                             <span style="flex-grow:1;">📄 ${qIdx + 1}번 퀴즈 - ${quiz.count}문항 (${typeLabel}) [응시하기] ${resultBtnHtml}</span>
-                            <button class="danger" style="padding: 2px 6px; font-size: 10px;" onclick="event.stopPropagation(); deleteQuiz(${part.id},${quiz.id})">삭제</button>
+                            <button class="danger" style="padding: 2px 6px; font-size: 10px;" onclick="event.stopPropagation(); deleteQuiz(${part.id}, ${quiz.id})">삭제</button>
                         </div>
                     `;
                 });
@@ -1343,17 +1326,18 @@
                 <div class="part-card">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
                         <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
-                            <span style="font-weight: bold; color: #2c3e50; cursor: pointer;" onclick="editPartName(\${part.id})" title="클릭하여 이름 변경">
+                            <span style="font-weight: bold; color: #2c3e50; cursor: pointer;" onclick="editPartName(${part.id})" title="클릭하여 이름 변경">
                                 ✏️ <span id="part-name-${part.id}">${part.name}</span>
                             </span>
-                            <button class="pattern-upload-btn" onclick="triggerPatternFileUpload(\${part.id})">패턴업로드</button>
-                            <button id="analyze-action-btn-${part.id}" class="${analyzeBtnClass}" ${analyzeBtnDisabled ? 'disabled' : ''} onclick="runPatternAnalysis(${part.id})">${analyzeBtnText}</button>${compareBtnHtml}
+                            <button class="pattern-upload-btn" onclick="triggerPatternFileUpload(${part.id})">패턴업로드</button>
+                            <button id="analyze-action-btn-${part.id}" class="${analyzeBtnClass}" ${analyzeBtnDisabled ? 'disabled' : ''} onclick="runPatternAnalysis(${part.id})">${analyzeBtnText}</button>
+                            ${compareBtnHtml}
                         </div>
                         <div style="display: flex; align-items: center; gap: 6px;">
-                            <select style="margin:0; padding:4px; font-size:11px; width:130px;" onchange="movePartToFolder(\${part.id}, this.value)">
-                                \${folderSelectOptions}
+                            <select style="margin:0; padding:4px; font-size:11px; width:130px;" onchange="movePartToFolder(${part.id}, this.value)">
+                                ${folderSelectOptions}
                             </select>
-                            <button class="danger" style="padding: 4px 8px; font-size: 11px;" onclick="deletePart(\${part.id})">삭제</button>
+                            <button class="danger" style="padding: 4px 8px; font-size: 11px;" onclick="deletePart(${part.id})">삭제</button>
                         </div>
                     </div>
                     <div id="sub-quizzes-${part.id}" style="margin-top: 8px;">${subQuizzesHtml}</div>
@@ -1365,7 +1349,7 @@
             const part = studyParts.find(p => p.id === partId);
             if (!part || !part.isAnalyzed) return;
 
-            const modalId = `compare-modal-\${partId}`;
+            const modalId = `compare-modal-${partId}`;
             let existingModal = document.getElementById(modalId);
             if (existingModal) existingModal.remove();
 
@@ -1374,7 +1358,7 @@
             modalOverlay.className = 'modal-overlay';
             modalOverlay.innerHTML = `
                 <div class="modal-card" style="max-width: 700px;">
-                    <button class="close-modal" onclick="document.getElementById('\${modalId}').remove()">&times;</button>
+                    <button class="close-modal" onclick="document.getElementById('${modalId}').remove()">&times;</button>
                     <h3>📊 패턴 습득 전후 스타일 비교</h3>
                     <p style="font-size: 13px; color: #666;">동일한 문서 내용을 바탕으로 <strong>[패턴 반영 전]</strong>과 <strong>[패턴 반영 후]</strong> 생성된 샘플 문항을 비교합니다.</p>
                     <hr style="margin: 15px 0;">
@@ -1386,10 +1370,10 @@
 
                     <div style="background: #f4f9f4; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #2ecc71;">
                         <h4 style="margin: 0 0 5px 0; color: #27ae60;">✅ 패턴 반영 후 (누적 분석된 스타일 적용)</h4>
-                        <p style="font-size: 13px; color: #333; margin: 0; white-space: pre-wrap;">\${part.analysisResult.substring(0, 400)}...</p>
+                        <p style="font-size: 13px; color: #333; margin: 0; white-space: pre-wrap;">${part.analysisResult.substring(0, 400)}...</p>
                     </div>
 
-                    <button class="secondary" style="width: 100%; padding: 10px;" onclick="document.getElementById('\${modalId}').remove()">확인 완료</button>
+                    <button class="secondary" style="width: 100%; padding: 10px;" onclick="document.getElementById('${modalId}').remove()">확인 완료</button>
                 </div>
             `;
             document.body.appendChild(modalOverlay);
@@ -1417,7 +1401,7 @@
             tabContentDiv.id = tabId;
             tabContentDiv.className = 'tab-content hidden card';
             
-            let htmlContent = `<h3>📝 시험 응시: \${part.name}</h3><p style="font-size:13px; color:#666;">문항당 답은 무조건 1개만 선택 가능합니다.</p><hr style="margin:15px 0;">`;
+            let htmlContent = `<h3>📝 시험 응시: ${part.name}</h3><p style="font-size:13px; color:#666;">문항당 답은 무조건 1개만 선택 가능합니다.</p><hr style="margin:15px 0;">`;
 
             parsedQuestions.forEach((q, idx) => {
                 let mainQuestion = q.question;
@@ -1426,14 +1410,15 @@
                 if (q.examples && Array.isArray(q.examples) && q.examples.length > 0) {
                     exampleBoxHtml = `<div class="quiz-example-box">`;
                     q.examples.forEach(ex => {
-                        exampleBoxHtml += `<div class="quiz-example-item">\${ex}</div>`;
+                        exampleBoxHtml += `<div class="quiz-example-item">${ex}</div>`;
                     });
                     exampleBoxHtml += `</div>`;
                 }
 
                 htmlContent += `
-                    <div class="quiz-question-box" data-qidx="\${idx}">
-                        <strong>문제 \${idx + 1}. ${mainQuestion}</strong>${exampleBoxHtml}
+                    <div class="quiz-question-box" data-qidx="${idx}">
+                        <strong>문제 ${idx + 1}. ${mainQuestion}</strong>
+                        ${exampleBoxHtml}
                         <div style="margin-top: 10px;">
                 `;
                 q.options.forEach((opt, oIdx) => {
@@ -1446,7 +1431,7 @@
                 htmlContent += `</div></div>`;
             });
 
-            htmlContent += `<button class="secondary" style="margin-top: 15px; width: 100%; padding: 12px; font-size: 16px;" onclick="submitExam('\${tabId}', ${part.id},${quizId})">시험 완료 및 결과 보기</button>`;
+            htmlContent += `<button class="secondary" style="margin-top: 15px; width: 100%; padding: 12px; font-size: 16px;" onclick="submitExam('${tabId}', ${part.id}, ${quizId})">시험 완료 및 결과 보기</button>`;
             tabContentDiv.innerHTML = htmlContent;
             dynamicContainer.appendChild(tabContentDiv);
 
@@ -1481,30 +1466,22 @@
 
         function parseQuizTextToStructured(rawText) {
             try {
-                if (typeof rawText === 'object' && rawText.questions) {
-                    return rawText.questions;
+                let cleanText = rawText.trim();
+                if (cleanText.startsWith('```')) {
+                    cleanText = cleanText.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/```\$/, '').trim();
                 }
-                
-                let cleanText = String(rawText).trim();
-                const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                    cleanText = jsonMatch[0];
-                }
-
                 const parsed = JSON.parse(cleanText);
                 if (parsed && parsed.questions && Array.isArray(parsed.questions)) {
                     return parsed.questions;
                 }
-            } catch (e) { 
-                console.error("JSON 파싱 에러:", e, rawText); 
-            }
+            } catch (e) { console.error("JSON 파싱 에러:", e); }
 
             return [{
                 question: "퀴즈 데이터를 불러오는 중 형식이 일치하지 않았습니다.",
                 examples: [],
                 options: ["보기 확인 불가", "보기 확인 불가", "보기 확인 불가", "보기 확인 불가", "보기 확인 불가"],
                 answer: 0,
-                explanation: typeof rawText === 'string' ? rawText : JSON.stringify(rawText)
+                explanation: rawText
             }];
         }
 
@@ -1531,7 +1508,7 @@
                 <div class="card" style="background: #ffffff; border: 1px solid #d4edda;">
                     <h3>🎉 시험 채점 결과</h3>
                     <p style="font-size: 16px; font-weight: bold; color: #2c3e50; margin-top: 10px;">
-                        총점: <span style="color: #e74c3c; font-size: 22px;">\${finalScore}점</span> / 100점
+                        총점: <span style="color: #e74c3c; font-size: 22px;">${finalScore}점</span> / 100점
                     </p>
                     <p style="font-size: 14px; color: #555;">정답 맞춘 문항: ${correctCount}문항 / 전체 ${totalQ}문항</p>
                     <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
@@ -1545,7 +1522,7 @@
                 if (q.examples && Array.isArray(q.examples) && q.examples.length > 0) {
                     exampleBoxHtml = `<div class="quiz-example-box">`;
                     q.examples.forEach(ex => {
-                        exampleBoxHtml += `<div class="quiz-example-item">\${ex}</div>`;
+                        exampleBoxHtml += `<div class="quiz-example-item">${ex}</div>`;
                     });
                     exampleBoxHtml += `</div>`;
                 }
@@ -1571,11 +1548,12 @@
                 optionsHtml += `</div>`;
 
                 resultHtml += `
-                    <div style="background: #fff; padding: 18px; border-radius: 8px; margin-bottom: 15px; border: 1.5px solid \${isCorrect ? '#2ecc71' : '#e74c3c'};">
-                        <strong style="font-size:15px;">문제 ${idx + 1}.${q.question}</strong>
-                        ${exampleBoxHtml}${optionsHtml}
+                    <div style="background: #fff; padding: 18px; border-radius: 8px; margin-bottom: 15px; border: 1.5px solid ${isCorrect ? '#2ecc71' : '#e74c3c'};">
+                        <strong style="font-size:15px;">문제 ${idx + 1}. ${q.question}</strong>
+                        ${exampleBoxHtml}
+                        ${optionsHtml}
                         <div style="font-size: 13px; color: #444; background: #f8f9fa; padding: 10px 12px; border-radius: 6px; white-space: pre-wrap; margin-top: 10px; border-left: 3px solid #3498db;">
-                            <strong>💡 정답 해설:</strong><br>\${q.explanation || '해설이 제공되지 않았습니다.'}
+                            <strong>💡 정답 해설:</strong><br>${q.explanation || '해설이 제공되지 않았습니다.'}
                         </div>
                     </div>
                 `;
@@ -1599,7 +1577,7 @@
             const existingResultTab = openTabs.find(t => t.id === resultTabId);
             if (existingResultTab) closeDynamicTab(resultTabId);
 
-            openTabs.push({ id: resultTabId, title: `결과: \${tabObj.title.replace('시험: ', '')}`, type: 'result' });
+            openTabs.push({ id: resultTabId, title: `결과: ${tabObj.title.replace('시험: ', '')}`, type: 'result' });
 
             const dynamicContainer = document.getElementById('dynamic-tabs-container');
             const resultTabDiv = document.createElement('div');
@@ -1609,7 +1587,7 @@
             dynamicContainer.appendChild(resultTabDiv);
 
             switchTab(resultTabId);
-            alert(`✅ 채점이 완료되고 결과가 저장되었습니다! 총점: \${finalScore}점`);
+            alert(`✅ 채점이 완료되고 결과가 저장되었습니다! 총점: ${finalScore}점`);
         }
 
         function editPartName(partId) {
@@ -1694,10 +1672,10 @@
                 const div = document.createElement('div');
                 div.className = 'trash-item';
                 div.innerHTML = `
-                    <span>\${t.type === 'part' ? `[상위] ${t.item.name}` : `[하위 퀴즈] (${t.item.count}문항)`}</span>
+                    <span>${t.type === 'part' ? `[상위] \${t.item.name}` : `[하위 퀴즈] (\${t.item.count}문항)`}</span>
                     <div style="display: flex; gap: 4px;">
-                        <button class="secondary" style="padding: 2px 6px; font-size: 10px;" onclick="restoreFromTrash(\${idx})">복구</button>
-                        <button class="danger" style="padding: 2px 6px; font-size: 10px;" onclick="permanentlyDelete(\${idx})">삭제</button>
+                        <button class="secondary" style="padding: 2px 6px; font-size: 10px;" onclick="restoreFromTrash(${idx})">복구</button>
+                        <button class="danger" style="padding: 2px 6px; font-size: 10px;" onclick="permanentlyDelete(${idx})">삭제</button>
                     </div>
                 `;
                 container.appendChild(div);
@@ -1723,7 +1701,7 @@
             let elapsedSeconds = 0;
 
             fill.style.width = '5%';
-            percentText.textContent = `5% (남은 시간: 약 \${totalEstimatedSeconds}초)`;
+            percentText.textContent = `5% (남은 시간: 약 ${totalEstimatedSeconds}초)`;
             statusTextEl.textContent = `🤖 맞춤형 문제 생성 중...`;
 
             progressInterval = setInterval(() => {
@@ -1731,7 +1709,7 @@
                 const remainingSeconds = Math.max(1, totalEstimatedSeconds - elapsedSeconds);
                 const percent = Math.min(95, Math.round((elapsedSeconds / totalEstimatedSeconds) * 90) + 5);
                 fill.style.width = percent + '%';
-                percentText.textContent = `${percent}\% (남은 시간: 약 ${remainingSeconds}초)`;
+                percentText.textContent = `${percent}% (남은 시간: 약 ${remainingSeconds}초)`;
             }, 1000);
         }
 
@@ -1786,18 +1764,14 @@
                 let previousQuestionsList = [];
                 if (targetPart.quizzes && targetPart.quizzes.length > 0) {
                     targetPart.quizzes.forEach(q => {
-                        try {
-                            const parsed = parseQuizTextToStructured(q.result);
-                            parsed.forEach(item => {
-                                if (item.question && !item.question.includes("형식이 일치하지 않았습니다")) {
-                                    previousQuestionsList.push(item.question.substring(0, 30));
-                                }
-                            });
-                        } catch(e) {}
+                        const parsed = parseQuizTextToStructured(q.result);
+                        parsed.forEach(item => {
+                            if (item.question) previousQuestionsList.push(item.question.substring(0, 30));
+                        });
                     });
                 }
                 const previousQuestionsContext = previousQuestionsList.length > 0 
-                    ? `[⚠️ 중복 출제 절대 금지 목록]\n다음은 이전에 출제했던 문제들의 지문입니다. 이번에는 아래 문제들과 주제나 내용이 겹치지 않는 완전히 새로운 영역에서 문제를 출제하세요:\n- \${previousQuestionsList.join('\n- ')}`
+                    ? `[⚠️ 중복 출제 절대 금지 목록]\n다음은 이전에 출제했던 문제들의 지문입니다. 이번에는 아래 문제들과 주제나 내용이 겹치지 않는 완전히 새로운 영역에서 문제를 출제하세요:\n- ${previousQuestionsList.join('\n- ')}`
                     : '';
 
                 for (let i = 0; i < keys.length; i++) {
@@ -1806,10 +1780,11 @@
 
                     try {
                         let patternGuideline = "";
+                        // 🛠️ 패턴 분석 여부에 따라 가이드라인을 안전하게 설정하도록 수정됨
                         if (targetPart.isAnalyzed && targetPart.analysisResult) {
                             patternGuideline = `
 [⭐ 출제 형식/스타일 참고 가이드라인]
-\${targetPart.analysisResult}
+${targetPart.analysisResult}
                             `;
                         }
 
@@ -1827,23 +1802,23 @@
                         }
 
                         const prompt = `
-당신은 최고급 의학·방사선 및 PACS 전공 국가고시 출제 위원입니다. 제공된 학습용 PDF 문서 텍스트들을 바탕으로 퀴즈 \${quizCount}문항을 생성해 주세요.
+당신은 최고급 의학·방사선 및 PACS 전공 국가고시 출제 위원입니다. 제공된 학습용 PDF 문서 텍스트들을 바탕으로 퀴즈 ${quizCount}문항을 생성해 주세요.
 
 [🚨 절대 금지 필터 규칙 (메타 및 행정 정보 배제)]
-1. "몇 장인가요?", "어떤 단원 차시인가요?" 같은 교재 구조, 목차, 주차별 순서에 대한 질문은 100% 절대 출제하지 마세요.
+1. "몇 장인가요?", "어떤 단원 차시인가요?" 같은 **교재 구조, 목차, 주차별 순서에 대한 질문은 100% 절대 출제하지 마세요.**
 2. 담당 교수 성함, 학교 행정 정보 등도 절대 출제 금지합니다.
 
-\${typeSpecificInstruction}
+${typeSpecificInstruction}
 
-\${previousQuestionsContext}
+${previousQuestionsContext}
 
 [출제 지침 및 보기 작성]
-1. 지문 내에서 '보기(가, 나, 다, 라)' 또는 복합 조건이 필요한 경우 반드시 'examples' 배열에 각각 따로 분리해서 담아주세요.
+1. 지문 내에서 '보기(가, 나, 다, 라)' 또는 복합 조건이 필요한 경우 반드시 **'examples' 배열**에 각각 따로 분리해서 담아주세요.
 2. 헷갈리기 쉬운 매력적인 오답(Distractor)을 구성하세요.
 
-\${patternGuideline}
+${patternGuideline}
 
-🚨 [중요 규칙] 응답은 설명이나 인사말, 마크다운 코드 블록(예: \`\`\`json)을 전혀 포함하지 말고 오직 아래 규격의 순수 JSON 문자열만 응답하세요:
+반드시 마크다운 없이 아래 순수 JSON 형식으로만 응답하세요:
 
 {
   "questions": [
@@ -1859,7 +1834,7 @@
 
 주의사항:
 - 가, 나, 다, 라 예시 조건이 필요 없는 일반 문항은 'examples' 배열을 빈 배열 []로 두세요.
-- 'answer'는 정답 인덱스 번호(0부터 시작)입니다.
+- 'answer'는 정답 인덱스 번호입니다.
 - 문항 수: 정확히 ${quizCount}문항.
 
 [학습 문서 전체 내용]
@@ -1868,13 +1843,10 @@ ${textChunk}
 
                         const res = await callAIWithKeyGeneric(keyItem, prompt);
                         if (res && res.text) {
-                            const testParsed = parseQuizTextToStructured(res.text);
-                            if (testParsed && testParsed.length > 0 && !testParsed[0].question.includes("형식이 일치하지 않았습니다")) {
-                                quizResult = res.text;
-                                matchedModelName = res.modelName;
-                                usedKeyInfo = keyItem;
-                                break;
-                            }
+                            quizResult = res.text;
+                            matchedModelName = res.modelName;
+                            usedKeyInfo = keyItem;
+                            break;
                         }
                     } catch (err) {
                         lastErrorMessage = err.message;
@@ -1887,7 +1859,7 @@ ${textChunk}
                 finishTimerProgress();
 
                 if (!quizResult) {
-                    alert(`❌ 퀴즈 생성 실패\n원인: ${lastErrorMessage || "AI가 완벽한 JSON 응답을 반환하지 못했습니다. 다시 시도해 주세요."}`);
+                    alert(`❌ 퀴즈 생성 실패\n원인: ${lastErrorMessage || "모든 키와 모델이 소진되었습니다."}`);
                     loadApiKeys();
                     return;
                 }
