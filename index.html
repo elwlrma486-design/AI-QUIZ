@@ -42,7 +42,6 @@
         .status-dot.exhausted { background-color: #e74c3c; }
         .hidden { display: none !important; }
         .key-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
-        #study-loading { font-size: 13px; color: #e67e22; margin-top: 5px; font-weight: bold; }
         
         .settings-container { position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
         .top-action-row { display: flex; gap: 6px; align-items: center; }
@@ -59,7 +58,7 @@
         .progress-wrapper { margin-top: 15px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #eee; }
         .progress-info { display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: #2c3e50; margin-bottom: 6px; }
         .progress-bar-container { width: 100%; background-color: #f1f2f6; border-radius: 6px; height: 12px; overflow: hidden; }
-        .progress-bar { width: 0%; height: 100%; background-color: #3498db; border-radius: 6px; transition: width 0.5s ease-in-out; }
+        .progress-bar { width: 0%; height: 100%; background-color: #3498db; border-radius: 6px; transition: width 0.3s ease-in-out; }
 
         /* 📌 상단 고정(Sticky) 탭 메뉴 스타일 */
         .tab-menu { 
@@ -103,12 +102,10 @@
         }
         .quiz-example-item { margin-bottom: 6px; display: flex; align-items: flex-start; }
         .quiz-example-item:last-child { margin-bottom: 0; }
-        .quiz-example-label { font-weight: bold; color: #2980b9; margin-right: 8px; white-space: nowrap; }
 
         .quiz-option-label { display: block; padding: 8px 12px; margin: 6px 0; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; cursor: pointer; font-size: 14px; }
         .quiz-option-label:hover { background: #e2e6ea; }
 
-        /* 채점 결과 전용 보기 스타일 */
         .result-option-item {
             padding: 8px 12px;
             margin: 5px 0;
@@ -163,7 +160,7 @@
 
         <hr style="margin: 25px 0; border: none; border-top: 1px solid #eee;">
 
-        <!-- 📌 상단에 고정되는 탭 메뉴 영역 -->
+        <!-- 📌 상단 고정 탭 메뉴 영역 -->
         <div id="tab-menu-container" class="tab-menu">
             <button class="tab-btn active" onclick="switchTab('study-tab')">PDF 업로드 및 학습</button>
             <button class="tab-btn" onclick="switchTab('files-tab')">생성된 학습파일</button>
@@ -171,14 +168,24 @@
 
         <div id="study-tab" class="tab-content">
             <h3>📄 PDF 업로드 및 학습</h3>
-            <p style="font-size: 13px; color: #666;">최대 3개까지 PDF 파일을 업로드하여 학습할 수 있습니다.</p>
+            <p style="font-size: 13px; color: #666;">최대 3개까지 PDF 파일을 업로드하여 학습할 수 있습니다. (대용량 파일은 페이지 수에 따라 시간이 소요됩니다)</p>
 
             <label>PDF 파일 선택 (최대 3개)</label>
             <input type="file" id="pdf-file-input" accept="application/pdf" multiple onchange="handleFileSelection(event)">
             <div id="selected-files-list" style="font-size: 13px; color: #555; margin-bottom: 10px;"></div>
             
             <button class="secondary" onclick="processPDFStudy()">학습후 파트생성</button>
-            <div id="study-loading" class="hidden">🔄 PDF 분석 및 OCR 문자 인식을 진행 중입니다... 잠시만 기다려주세요!</div>
+            
+            <!-- ⏳ PDF 학습 전용 초단위 로딩바 -->
+            <div id="pdf-loading-wrapper" class="progress-wrapper hidden">
+                <div class="progress-info">
+                    <span id="pdf-progress-status-text">📄 PDF 텍스트 및 OCR 추출 중...</span>
+                    <span id="pdf-progress-percent-text">0% (남은 시간: 계산 중...)</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div id="pdf-progress-bar-fill" class="progress-bar"></div>
+                </div>
+            </div>
         </div>
 
         <div id="files-tab" class="tab-content hidden">
@@ -197,7 +204,7 @@
             
             <label>적용할 학습 파트 선택</label>
             <select id="target-part-select">
-                <option value="">-- 학습 파트를 먼저 생성해주세요 --</option>
+                <option value="">-- 학습 파트를 먼저 선택해주세요 --</option>
             </select>
 
             <label>퀴즈 유형 설정</label>
@@ -221,6 +228,7 @@
 
             <button onclick="generateQuizFromLearnedData()">AI 퀴즈 생성하기</button>
             
+            <!-- ⏳ 퀴즈 생성 전용 초단위 로딩바 -->
             <div id="quiz-loading-wrapper" class="progress-wrapper hidden">
                 <div class="progress-info">
                     <span id="progress-status-text">🤖 AI가 PDF를 분석하여 퀴즈 생성 중...</span>
@@ -289,18 +297,16 @@
         let activeModelNames = {};
         let exhaustedKeysCache = {};
         let progressInterval = null;
+        let pdfProgressInterval = null;
         let openTabs = []; 
         let activeTabId = 'study-tab';
         let currentTargetPartIdForPattern = null;
-        
-        // 📌 탭별 스크롤 위치 저장 객체 (스크롤 위치 보존용)
         let tabScrollPositions = {};
 
         window.addEventListener('DOMContentLoaded', async () => {
             await checkSession();
         });
 
-        // 🎯 탭 전환 시 스크롤 위치 보존 및 복원 함수
         function switchTab(tabId) {
             if (activeTabId) {
                 tabScrollPositions[activeTabId] = window.scrollY || document.documentElement.scrollTop;
@@ -432,6 +438,7 @@
             document.getElementById('user-email').textContent = currentUser.email;
         }
 
+        // 🎯 모든 행적(학습 파트, 폴더, 퀴즈, 휴지통) Supabase 즉시 동기화 저장 함수
         async function saveStudyDataToDB() {
             if (!currentUser) return;
             try {
@@ -442,7 +449,8 @@
                     trash_bin: trashBin,
                     updated_at: new Date().toISOString()
                 };
-                await supabaseClient.from('study_data').upsert(payload, { onConflict: 'user_id' });
+                const { error } = await supabaseClient.from('study_data').upsert(payload, { onConflict: 'user_id' });
+                if (error) console.error("DB 저장 오류:", error);
             } catch (err) {
                 console.error("데이터 저장 중 예외:", err);
             }
@@ -799,10 +807,42 @@
             listContainer.textContent = `선택된 파일 (${files.length}/3): ${fileNames}`;
         }
 
+        // ⏳ PDF 학습 전용 초단위 로딩바 시작 함수
+        function startPdfTimerProgress(estimatedSeconds) {
+            const wrapper = document.getElementById('pdf-loading-wrapper');
+            const fill = document.getElementById('pdf-progress-bar-fill');
+            const percentText = document.getElementById('pdf-progress-percent-text');
+            const statusTextEl = document.getElementById('pdf-progress-status-text');
+
+            if (pdfProgressInterval) clearInterval(pdfProgressInterval);
+            wrapper.classList.remove('hidden');
+            
+            let elapsedSeconds = 0;
+            fill.style.width = '3%';
+            percentText.textContent = `3% (남은 시간: 약 ${estimatedSeconds}초)`;
+            statusTextEl.textContent = `📄 대용량 PDF 텍스트 및 도해 OCR 추출 중...`;
+
+            pdfProgressInterval = setInterval(() => {
+                elapsedSeconds++;
+                const remainingSeconds = Math.max(1, estimatedSeconds - elapsedSeconds);
+                const percent = Math.min(96, Math.round((elapsedSeconds / estimatedSeconds) * 93) + 3);
+                fill.style.width = percent + '%';
+                percentText.textContent = `${percent}% (남은 시간: 약 ${remainingSeconds}초)`;
+            }, 1000);
+        }
+
+        function finishPdfTimerProgress() {
+            if (pdfProgressInterval) clearInterval(pdfProgressInterval);
+            const fill = document.getElementById('pdf-progress-bar-fill');
+            const percentText = document.getElementById('pdf-progress-percent-text');
+            const wrapper = document.getElementById('pdf-loading-wrapper');
+            fill.style.width = '100%';
+            percentText.textContent = '100% (완료!)';
+            setTimeout(() => { wrapper.classList.add('hidden'); }, 800);
+        }
+
         async function processPDFStudy() {
             const fileInput = document.getElementById('pdf-file-input');
-            const studyLoading = document.getElementById('study-loading');
-
             if (fileInput.files.length === 0) {
                 alert("학습할 PDF 파일을 선택해주세요.");
                 return;
@@ -813,7 +853,17 @@
                 return;
             }
 
-            studyLoading.classList.remove('hidden');
+            // 대용량 파일(350페이지 등) 감안하여 페이지 수 비례 예상 시간 산출 (페이지당 약 0.15초 가정, 최소 15초)
+            let totalPagesApprox = 0;
+            for (let f of fileInput.files) {
+                try {
+                    const ab = await f.arrayBuffer();
+                    const pdfDoc = await pdfjsLib.getDocument({ data: ab }).promise;
+                    totalPagesApprox += pdfDoc.numPages;
+                } catch(e) { totalPagesApprox += 50; }
+            }
+            const estimatedSec = Math.max(15, Math.round(totalPagesApprox * 0.18));
+            startPdfTimerProgress(estimatedSec);
 
             try {
                 let combinedText = "";
@@ -829,7 +879,6 @@
                         const textContent = await page.getTextContent();
                         let pageText = textContent.items.map(item => item.str).join(" ");
 
-                        // 🖼️ 텍스트가 부족하거나 그림/도해 페이지인 경우 OCR을 통해 도해 속 명칭(세포소기관, 신체부위 등)까지 철저히 추출
                         if (pageText.trim().length < 50) {
                             const viewport = page.getViewport({ scale: 1.5 });
                             const canvas = document.createElement('canvas');
@@ -847,7 +896,7 @@
                     }
                 }
 
-                studyLoading.classList.add('hidden');
+                finishPdfTimerProgress();
 
                 if (!combinedText.trim()) {
                     alert("⚠️ PDF에서 인식된 텍스트가 없습니다.");
@@ -867,15 +916,16 @@
                 };
 
                 studyParts.push(newPart);
-                await saveStudyDataToDB();
+                await saveStudyDataToDB(); // 🎯 즉시 Supabase 저장
                 renderStudyParts();
                 
-                alert(`✅ 학습이 완료되었습니다! '생성된 학습파일' 탭에서 [${firstFileName}]을 확인하세요.`);
+                alert(`✅ 학습이 완료되고 안전하게 저장되었습니다! '생성된 학습파일' 탭에서 [${firstFileName}]을 확인하세요.`);
                 fileInput.value = "";
                 document.getElementById('selected-files-list').innerHTML = "";
 
             } catch (err) {
-                studyLoading.classList.add('hidden');
+                if (pdfProgressInterval) clearInterval(pdfProgressInterval);
+                document.getElementById('pdf-loading-wrapper').classList.add('hidden');
                 alert("학습 중 오류 발생: " + err.message);
             }
         }
@@ -930,10 +980,10 @@
                 part.patternText = part.patternText ? (part.patternText + "\n\n" + patternCombinedText) : patternCombinedText;
                 part.isAnalyzed = false; 
 
-                await saveStudyDataToDB();
+                await saveStudyDataToDB(); // 🎯 패턴 업로드 즉시 DB 저장
                 renderStudyParts();
 
-                alert(`✅ 파일(${uploadedFileNames.join(", ")}) 추가 업로드 완료!\n기존 데이터와 누적되었습니다. 이제 [분석하기] 버튼을 눌러 추가 분석을 진행하세요.`);
+                alert(`✅ 파일(${uploadedFileNames.join(", ")}) 추가 업로드 및 저장 완료!\n이제 [분석하기] 버튼을 눌러 추가 분석을 진행하세요.`);
 
             } catch (err) {
                 alert("파일 처리 중 오류 발생: " + err.message);
@@ -1000,10 +1050,10 @@ ${part.patternText.substring(0, 15000)}
 
                 part.isAnalyzed = true;
                 part.analysisResult = analysisText;
-                await saveStudyDataToDB();
+                await saveStudyDataToDB(); // 🎯 분석 결과 즉시 DB 저장
                 renderStudyParts();
 
-                alert(`✅ [${part.name}] 패턴 형식 분석 완료!\n\n[분석된 핵심 패턴 요약]:\n${analysisText.substring(0, 300)}...`);
+                alert(`✅ [${part.name}] 패턴 형식 분석 및 저장 완료!`);
 
             } catch (err) {
                 alert("패턴 분석 중 오류 발생: " + err.message);
@@ -1393,7 +1443,6 @@ ${part.patternText.substring(0, 15000)}
             }];
         }
 
-        // 🎯 시험 제출 및 결과 화면에 문제, 예시, 1~5번 전체 보기 완벽 포함
         async function submitExam(tabId, partId, quizId) {
             const tabObj = openTabs.find(t => t.id === tabId);
             if (!tabObj) return;
@@ -1476,7 +1525,7 @@ ${part.patternText.substring(0, 15000)}
                 if (quiz) {
                     quiz.hasCompleted = true;
                     quiz.resultHtml = resultHtml;
-                    await saveStudyDataToDB();
+                    await saveStudyDataToDB(); // 🎯 시험 결과 저장 즉시 DB 동기화
                 }
             }
             renderStudyParts();
@@ -1496,7 +1545,7 @@ ${part.patternText.substring(0, 15000)}
             dynamicContainer.appendChild(resultTabDiv);
 
             switchTab(resultTabId);
-            alert(`✅ 채점이 완료되었습니다! 총점: ${finalScore}점`);
+            alert(`✅ 채점이 완료되고 결과가 저장되었습니다! 총점: ${finalScore}점`);
         }
 
         function editPartName(partId) {
@@ -1696,14 +1745,12 @@ ${targetPart.analysisResult}
                             `;
                         }
 
-                        // 🖼️ [도해/그림 분석형] 선택 시 전용 프롬프트 분기 처리 (세포소기관, 신체부위 단계 등 명칭 및 빈칸 추론)
                         let typeSpecificInstruction = "";
                         if (quizType === 'diagram') {
                             typeSpecificInstruction = `
 [🎯 [도해/그림 분석형] 특별 출제 지침]
 - 문서 내에 포함된 그림/도해(예: [그림 1-1] 인체의 구조적 단계, [그림 1-14] 세포소기관 등)의 OCR 인식 내용과 설명 내용을 적극 활용하세요.
 - 그림 속 화살표가 가리키는 **신체 부위, 세포소기관 명칭, 단계별 순서(화학적 단계 -> 세포 단계 -> 조직 단계 등)**를 맞추거나 빈칸을 채우는 형태의 도해 문제를 출제하세요.
-- 문제 예시(examples)나 지문에 그림의 명칭과 구조물 특징을 상세히 묘사하여, 실제 그림을 보며 학습하는 듯한 고품질 도해/구조 문제를 만드세요.
                             `;
                         } else if (quizType === 'multiple') {
                             typeSpecificInstruction = `
@@ -1789,7 +1836,7 @@ ${textChunk}
                 };
 
                 targetPart.quizzes.push(newQuizObj);
-                await saveStudyDataToDB();
+                await saveStudyDataToDB(); // 🎯 퀴즈 생성 즉시 DB 저장
                 renderStudyParts();
 
                 openExamTab(targetPart.id, newQuizId);
