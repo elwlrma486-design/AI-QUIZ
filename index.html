@@ -67,6 +67,11 @@
         .tab-close-x { font-size: 14px; margin-left: 4px; cursor: pointer; padding: 0 3px; border-radius: 50%; }
         .tab-close-x:hover { background: rgba(0,0,0,0.2); }
 
+        /* 📁 폴더 관리 스타일 */
+        .folder-section { background: #fdfefe; border: 1px solid #dcdfe6; border-radius: 10px; padding: 15px; margin-bottom: 15px; }
+        .folder-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .folder-title { font-weight: bold; color: #2c3e50; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+
         .part-card { background: #fff; border: 1px solid #ddd; padding: 12px 15px; border-radius: 8px; margin-bottom: 10px; }
         .sub-quiz-item { background: #f8f9fa; border-left: 3px solid #3498db; padding: 8px 12px; margin: 6px 0 6px 20px; border-radius: 4px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
         .sub-quiz-item:hover { background: #ebf5fb; }
@@ -74,7 +79,6 @@
 
         .quiz-question-box { background: #fdfefe; border: 1px solid #e1e8ed; padding: 18px; border-radius: 8px; margin-bottom: 15px; }
         
-        /* 📦 가,나,다,라 예시 깔끔한 네모 박스 스타일 추가 */
         .quiz-example-box {
             background-color: #f8f9fa;
             border: 1px solid #dcdfe6;
@@ -85,20 +89,9 @@
             line-height: 1.7;
             color: #2c3e50;
         }
-        .quiz-example-item {
-            margin-bottom: 6px;
-            display: flex;
-            align-items: flex-start;
-        }
-        .quiz-example-item:last-child {
-            margin-bottom: 0;
-        }
-        .quiz-example-label {
-            font-weight: bold;
-            color: #2980b9;
-            margin-right: 8px;
-            white-space: nowrap;
-        }
+        .quiz-example-item { margin-bottom: 6px; display: flex; align-items: flex-start; }
+        .quiz-example-item:last-child { margin-bottom: 0; }
+        .quiz-example-label { font-weight: bold; color: #2980b9; margin-right: 8px; white-space: nowrap; }
 
         .quiz-option-label { display: block; padding: 8px 12px; margin: 6px 0; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; cursor: pointer; font-size: 14px; }
         .quiz-option-label:hover { background: #e2e6ea; }
@@ -154,11 +147,15 @@
         </div>
 
         <div id="files-tab" class="tab-content hidden">
-            <h3>📁 생성된 학습파일 및 퀴즈 관리</h3>
-            <p style="font-size: 13px; color: #666;">상위 학습 파트(최대 10개)와 하위 퀴즈 파일 관리 및 휴지통 기능입니다.</p>
+            <h3>📁 생성된 학습파일 및 폴더 관리</h3>
+            <p style="font-size: 13px; color: #666;">폴더를 생성하여 PDF 학습 파일들을 한곳에 모으고 이동·관리할 수 있습니다.</p>
             
-            <div id="study-parts-container" style="margin-top: 15px;">
-                <p style="font-size: 13px; color: #888;">생성된 학습 파트가 없습니다.</p>
+            <div style="margin: 15px 0; display: flex; gap: 10px;">
+                <button class="secondary" onclick="createNewFolder()">📁 새 폴더 만들기</button>
+            </div>
+
+            <div id="folders-container" style="margin-top: 15px;">
+                <!-- 폴더 및 미분류 파일 목록 렌더링 영역 -->
             </div>
 
             <hr style="margin: 25px 0; border: none; border-top: 1px solid #eee;">
@@ -254,6 +251,7 @@
         
         let currentUser = null;
         let studyParts = []; 
+        let folders = []; // 📁 폴더 목록 [{ id, name, partIds }]
         let trashBin = [];   
         let activeModelNames = {};
         let exhaustedKeysCache = {};
@@ -393,6 +391,7 @@
                 const payload = {
                     user_id: currentUser.id,
                     study_parts: studyParts,
+                    folders: folders,
                     trash_bin: trashBin,
                     updated_at: new Date().toISOString()
                 };
@@ -409,6 +408,7 @@
                 if (error && error.code !== 'PGRST116') return;
                 if (data) {
                     studyParts = data.study_parts || [];
+                    folders = data.folders || [];
                     trashBin = data.trash_bin || [];
                     renderStudyParts();
                     renderTrashBin();
@@ -416,6 +416,61 @@
             } catch (err) {
                 console.error("데이터 로드 중 예외:", err);
             }
+        }
+
+        // 📁 폴더 관리 함수들
+        function createNewFolder() {
+            const folderName = prompt("생성할 폴더 이름을 입력하세요:", "새 폴더");
+            if (!folderName || !folderName.trim()) return;
+
+            const newFolder = {
+                id: Date.now(),
+                name: folderName.trim(),
+                partIds: []
+            };
+
+            folders.push(newFolder);
+            saveStudyDataToDB();
+            renderStudyParts();
+        }
+
+        function editFolderName(folderId) {
+            const folder = folders.find(f => f.id === folderId);
+            if (!folder) return;
+            const newName = prompt("변경할 폴더 이름을 입력하세요:", folder.name);
+            if (newName && newName.trim()) {
+                folder.name = newName.trim();
+                saveStudyDataToDB();
+                renderStudyParts();
+            }
+        }
+
+        function deleteFolder(folderId) {
+            const folderIndex = folders.findIndex(f => f.id === folderId);
+            if (folderIndex > -1) {
+                folders.splice(folderIndex, 1);
+                saveStudyDataToDB();
+                renderStudyParts();
+            }
+        }
+
+        function movePartToFolder(partId, folderIdStr) {
+            // 모든 폴더에서 해당 파트 ID 제거
+            folders.forEach(f => {
+                f.partIds = f.partIds.filter(id => id !== partId);
+            });
+
+            // 특정 폴더로 이동하는 경우
+            if (folderIdStr !== "") {
+                const folderId = parseInt(folderIdStr);
+                const targetFolder = folders.find(f => f.id === folderId);
+                if (targetFolder) {
+                    targetFolder.partIds.push(partId);
+                }
+            }
+
+            saveStudyDataToDB();
+            renderStudyParts();
         }
 
         function openApiKeyPage() {
@@ -1017,88 +1072,145 @@ ${part.patternText.substring(0, 15000)}
             return null;
         }
 
+        // 📁 폴더 구조 및 파일 렌더링 함수
         function renderStudyParts() {
-            const container = document.getElementById('study-parts-container');
+            const foldersContainer = document.getElementById('folders-container');
             const selectEl = document.getElementById('target-part-select');
             
-            container.innerHTML = '';
-            selectEl.innerHTML = '';
+            foldersContainer.innerHTML = '';
+            selectEl.innerHTML = '<option value="">-- 학습 파트를 먼저 선택해주세요 --</option>';
 
             if (studyParts.length === 0) {
-                container.innerHTML = '<p style="font-size: 13px; color: #888;">생성된 학습 파트가 없습니다.</p>';
-                selectEl.innerHTML = '<option value="">-- 학습 파트를 먼저 생성해주세요 --</option>';
+                foldersContainer.innerHTML = '<p style="font-size: 13px; color: #888;">생성된 학습 파트가 없습니다.</p>';
                 return;
             }
 
-            studyParts.forEach((part) => {
+            // 모든 파트 드롭다운 옵션 채우기
+            studyParts.forEach(part => {
                 const opt = document.createElement('option');
                 opt.value = part.id;
                 opt.textContent = part.name;
                 selectEl.appendChild(opt);
+            });
 
-                const partDiv = document.createElement('div');
-                partDiv.className = 'part-card';
+            // 이미 폴더에 할당된 파트 ID 집합
+            let assignedPartIds = new Set();
+            folders.forEach(f => f.partIds.forEach(id => assignedPartIds.add(id)));
 
-                let analyzeBtnClass = "analyze-action-btn";
-                let analyzeBtnText = "분석하기";
-                let analyzeBtnDisabled = true;
+            // 1. 폴더별 렌더링
+            folders.forEach(folder => {
+                const folderDiv = document.createElement('div');
+                folderDiv.className = 'folder-section';
+                
+                let folderPartsHtml = '';
+                const folderParts = studyParts.filter(p => folder.partIds.includes(p.id));
 
-                if (part.isAnalyzed) {
-                    analyzeBtnClass = "analyze-action-btn done-analyze";
-                    analyzeBtnText = "분석완료됨";
-                    analyzeBtnDisabled = true;
-                } else if (part.isUploaded) {
-                    analyzeBtnClass = "analyze-action-btn ready-analyze";
-                    analyzeBtnText = "분석하기";
-                    analyzeBtnDisabled = false;
+                if (folderParts.length === 0) {
+                    folderPartsHtml = '<div style="font-size: 12px; color: #aaa; padding: 5px 0;">폴더가 비어 있습니다. 아래에서 파일을 이동해 보세요.</div>';
                 } else {
-                    analyzeBtnClass = "analyze-action-btn";
-                    analyzeBtnText = "분석하기";
-                    analyzeBtnDisabled = true;
+                    folderParts.forEach(part => {
+                        folderPartsHtml += buildPartCardHtml(part);
+                    });
                 }
 
-                let compareBtnHtml = part.isAnalyzed ? `<button class="compare-btn" onclick="openComparisonModal(${part.id})">📊 패턴 반영 전후 비교</button>` : '';
+                folderDiv.innerHTML = `
+                    <div class="folder-header">
+                        <div class="folder-title" onclick="editFolderName(${folder.id})" title="클릭하여 폴더명 변경" style="cursor:pointer;">
+                            📁 <span>${folder.name}</span> (${folderParts.length}개)
+                        </div>
+                        <button class="danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteFolder(${folder.id})">폴더 삭제</button>
+                    </div>
+                    <div style="margin-top: 10px;">${folderPartsHtml}</div>
+                `;
+                foldersContainer.appendChild(folderDiv);
+            });
 
-                partDiv.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
+            // 2. 미분류 파일 렌더링 (어떤 폴더에도 속하지 않은 파트)
+            const unassignedParts = studyParts.filter(p => !assignedPartIds.has(p.id));
+            if (unassignedParts.length > 0 || folders.length === 0) {
+                const unassignedDiv = document.createElement('div');
+                unassignedDiv.className = 'folder-section';
+                unassignedDiv.style.borderStyle = 'dashed';
+
+                let unassignedHtml = '';
+                unassignedParts.forEach(part => {
+                    unassignedHtml += buildPartCardHtml(part);
+                });
+
+                unassignedDiv.innerHTML = `
+                    <div class="folder-header">
+                        <div class="folder-title">📂 미분류 학습 파일 (${unassignedParts.length}개)</div>
+                    </div>
+                    <div style="margin-top: 10px;">${unassignedHtml || '<div style="font-size: 12px; color: #aaa;">미분류 파일이 없습니다.</div>'}</div>
+                `;
+                foldersContainer.appendChild(unassignedDiv);
+            }
+        }
+
+        function buildPartCardHtml(part) {
+            let analyzeBtnClass = "analyze-action-btn";
+            let analyzeBtnText = "분석하기";
+            let analyzeBtnDisabled = true;
+
+            if (part.isAnalyzed) {
+                analyzeBtnClass = "analyze-action-btn done-analyze";
+                analyzeBtnText = "분석완료됨";
+                analyzeBtnDisabled = true;
+            } else if (part.isUploaded) {
+                analyzeBtnClass = "analyze-action-btn ready-analyze";
+                analyzeBtnText = "분석하기";
+                analyzeBtnDisabled = false;
+            } else {
+                analyzeBtnClass = "analyze-action-btn";
+                analyzeBtnText = "분석하기";
+                analyzeBtnDisabled = true;
+            }
+
+            let compareBtnHtml = part.isAnalyzed ? `<button class="compare-btn" onclick="openComparisonModal(${part.id})">📊 비교</button>` : '';
+
+            // 폴더 이동 드롭다운 생성
+            let folderSelectOptions = `<option value="">[미분류로 이동]</option>`;
+            folders.forEach(f => {
+                const isCurrent = f.partIds.includes(part.id);
+                folderSelectOptions += `<option value="${f.id}" ${isCurrent ? 'selected' : ''}>📁 ${f.name}</option>`;
+            });
+
+            let subQuizzesHtml = '';
+            if (!part.quizzes || part.quizzes.length === 0) {
+                subQuizzesHtml = '<div style="font-size: 12px; color: #aaa; margin-left: 20px;">생성된 하위 퀴즈가 없습니다.</div>';
+            } else {
+                part.quizzes.forEach((quiz, qIdx) => {
+                    let resultBtnHtml = (quiz.hasCompleted && quiz.resultHtml) ? `<button class="result-btn" onclick="event.stopPropagation(); openResultTab('${part.id}', '${quiz.id}')">📊 결과</button>` : '';
+                    subQuizzesHtml += `
+                        <div class="sub-quiz-item" onclick="openExamTab(${part.id}, ${quiz.id})">
+                            <span style="flex-grow:1;">📄 ${qIdx + 1}번 퀴즈 - ${quiz.count}문항 (${quiz.type === 'multiple' ? '5지선다' : quiz.type === 'ox' ? 'O/X' : '주관식'}) [응시하기] ${resultBtnHtml}</span>
+                            <button class="danger" style="padding: 2px 6px; font-size: 10px;" onclick="event.stopPropagation(); deleteQuiz(${part.id}, ${quiz.id})">삭제</button>
+                        </div>
+                    `;
+                });
+            }
+
+            return `
+                <div class="part-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
                         <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
                             <span style="font-weight: bold; color: #2c3e50; cursor: pointer;" onclick="editPartName(${part.id})" title="클릭하여 이름 변경">
                                 ✏️ <span id="part-name-${part.id}">${part.name}</span>
                             </span>
-                            <button class="pattern-upload-btn" onclick="triggerPatternFileUpload(${part.id})">패턴분석문제업로드</button>
+                            <button class="pattern-upload-btn" onclick="triggerPatternFileUpload(${part.id})">패턴업로드</button>
                             <button id="analyze-action-btn-${part.id}" class="${analyzeBtnClass}" ${analyzeBtnDisabled ? 'disabled' : ''} onclick="runPatternAnalysis(${part.id})">${analyzeBtnText}</button>
                             ${compareBtnHtml}
                         </div>
-                        <div>
-                            <button class="danger" style="padding: 4px 8px; font-size: 11px;" onclick="deletePart(${part.id})">상위 삭제</button>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <select style="margin:0; padding:4px; font-size:11px; width:120px;" onchange="movePartToFolder(${part.id}, this.value)">
+                                ${folderSelectOptions}
+                            </select>
+                            <button class="danger" style="padding: 4px 8px; font-size: 11px;" onclick="deletePart(${part.id})">삭제</button>
                         </div>
                     </div>
-                    <div id="sub-quizzes-${part.id}" style="margin-top: 8px;"></div>
-                `;
-
-                const subContainer = partDiv.querySelector(`#sub-quizzes-${part.id}`);
-                if (!part.quizzes || part.quizzes.length === 0) {
-                    subContainer.innerHTML = '<div style="font-size: 12px; color: #aaa; margin-left: 20px;">생성된 하위 퀴즈가 없습니다.</div>';
-                } else {
-                    part.quizzes.forEach((quiz, qIdx) => {
-                        const subItem = document.createElement('div');
-                        subItem.className = 'sub-quiz-item';
-                        
-                        let resultBtnHtml = '';
-                        if (quiz.hasCompleted && quiz.resultHtml) {
-                            resultBtnHtml = `<button class="result-btn" onclick="event.stopPropagation(); openResultTab('${part.id}', '${quiz.id}')">📊 결과 보기</button>`;
-                        }
-
-                        subItem.innerHTML = `
-                            <span onclick="openExamTab(${part.id}, ${quiz.id})" style="flex-grow:1;">📄 ${qIdx + 1}번 퀴즈 - ${quiz.count}문항 (${quiz.type === 'multiple' ? '5지선다' : quiz.type === 'ox' ? 'O/X' : '주관식'}) [클릭하여 시험 풀기] ${resultBtnHtml}</span>
-                            <button class="danger" style="padding: 2px 6px; font-size: 10px;" onclick="event.stopPropagation(); deleteQuiz(${part.id}, ${quiz.id})">삭제</button>
-                        `;
-                        subContainer.appendChild(subItem);
-                    });
-                }
-
-                container.appendChild(partDiv);
-            });
+                    <div id="sub-quizzes-${part.id}" style="margin-top: 8px;">${subQuizzesHtml}</div>
+                </div>
+            `;
         }
 
         async function openComparisonModal(partId) {
@@ -1135,7 +1247,6 @@ ${part.patternText.substring(0, 15000)}
             document.body.appendChild(modalOverlay);
         }
 
-        // 🎯 퀴즈 화면 구성 시 지문 내 예시(가, 나, 다, 라)가 있을 경우 네모 박스로 깔끔하게 분리 출력
         function openExamTab(partId, quizId) {
             const part = studyParts.find(p => p.id === partId);
             if (!part) return;
@@ -1164,7 +1275,6 @@ ${part.patternText.substring(0, 15000)}
                 let mainQuestion = q.question;
                 let exampleBoxHtml = "";
 
-                // 가, 나, 다, 라 보기 패턴 분리 파싱
                 if (q.examples && Array.isArray(q.examples) && q.examples.length > 0) {
                     exampleBoxHtml = `<div class="quiz-example-box">`;
                     q.examples.forEach(ex => {
@@ -1338,6 +1448,11 @@ ${part.patternText.substring(0, 15000)}
             const idx = studyParts.findIndex(p => p.id === partId);
             if (idx > -1) {
                 const removed = studyParts.splice(idx, 1)[0];
+                // 폴더에서도 제거
+                folders.forEach(f => {
+                    f.partIds = f.partIds.filter(id => id !== partId);
+                });
+
                 removed.quizzes.forEach(q => {
                     closeDynamicTab(`exam-tab-${partId}-${q.id}`);
                     closeDynamicTab(`result-tab-${partId}-${q.id}`);
@@ -1431,7 +1546,7 @@ ${part.patternText.substring(0, 15000)}
 
             fill.style.width = '5%';
             percentText.textContent = `5% (남은 시간: 약 ${totalEstimatedSeconds}초)`;
-            statusTextEl.textContent = `🤖 무작위 전범위 5지선다 ${quizCount}문항 퀴즈 생성 중...`;
+            statusTextEl.textContent = `🤖 순수 학술 전범위 5지선다 ${quizCount}문항 퀴즈 생성 중...`;
 
             progressInterval = setInterval(() => {
                 elapsedSeconds++;
@@ -1452,7 +1567,7 @@ ${part.patternText.substring(0, 15000)}
             setTimeout(() => { wrapper.classList.add('hidden'); }, 800);
         }
 
-        // 🚀 PDF 무작위 랜덤 청킹 & 지문 박스 분리(가,나,다,라) 프롬프트 적용
+        // 🚀 교수 이름/행정 정보 필터링 및 무작위 범위 퀴즈 생성
         async function generateQuizFromLearnedData() {
             const targetPartId = parseInt(document.getElementById('target-part-select').value);
             const quizType = document.getElementById('quiz-type-select').value;
@@ -1486,7 +1601,6 @@ ${part.patternText.substring(0, 15000)}
                 let usedKeyInfo = null;
                 let matchedModelName = "";
 
-                // 🎲 PDF 무작위 범위 추출 (Random Offset Chunking)
                 const fullTextLength = targetPart.text.length;
                 const chunkSize = 12000;
                 let textChunk = targetPart.text;
@@ -1497,7 +1611,6 @@ ${part.patternText.substring(0, 15000)}
                     textChunk = targetPart.text.substring(randomOffset, randomOffset + chunkSize);
                 }
 
-                // 📝 기존에 생성했던 문제들과 중복을 피하기 위해 이전 문항 타이틀 요약 수집
                 let previousQuestionsList = [];
                 if (targetPart.quizzes && targetPart.quizzes.length > 0) {
                     targetPart.quizzes.forEach(q => {
@@ -1520,13 +1633,19 @@ ${part.patternText.substring(0, 15000)}
                         if (targetPart.isAnalyzed && targetPart.analysisResult) {
                             patternGuideline = `
 [⭐ 출제 형식/스타일 참고 가이드라인]
-다음 분석 가이드라인은 오직 '문제 지문 형태(가,나,다,라 포함 여부)', '함정 구성 방식', '난이도' 등의 **출제 패턴/형식**에만 적용하세요. 문제의 실제 내용 및 핵심 주제는 아래 제공된 PDF 원본 텍스트의 다양한 위치에서 골고루 랜덤하게 가져와야 합니다:
+다음 분석 가이드라인은 오직 '문제 지문 형태(가,나,다,라 포함 여부)', '함정 구성 방식', '난이도' 등의 **출제 패턴/형식**에만 적용하세요. 문제의 실제 내용 및 핵심 주제는 아래 제공된 PDF 원본 텍스트의 다양한 위치에서 골고루 가져와야 합니다:
 ${targetPart.analysisResult}
                             `;
                         }
 
+                        // 🚫 교수 이름 및 행정 정보 필터링 엄격 지침 추가
                         const prompt = `
 당신은 최고급 전문 학술/자격증 시험 출제 위원입니다. 제공된 학습용 PDF 문서 텍스트를 바탕으로 ${quizType === 'multiple' ? '고급 5지선다 객관식' : quizType === 'ox' ? 'O/X' : '주관식'} 퀴즈 ${quizCount}문항을 생성해 주세요.
+
+[🚨 절대 금지 필터 규칙 (행정 및 인물 정보 배제)]
+1. 담당 교수 성함, 교원 이름, 강사 이름, 조교 이름 등 **인물이나 교수와 관련된 정보는 절대 문제로 출제하지 마세요.**
+2. 몇 주차 수업인지, 강의 차시, 학사 일정, 강의계획서 관련 행정적 질문도 **절대 출제하지 마세요.**
+3. 오직 **순수 학술적, 임상적, 전공 지식 및 기술적 핵심 내용**만 문제로 출제해야 합니다.
 
 ${previousQuestionsContext}
 
@@ -1534,9 +1653,6 @@ ${previousQuestionsContext}
 1. **문제 중복 방지 및 무작위성**: 문서 전체를 골고루 활용하여 매번 새로운 주제와 개념으로 출제하세요.
 2. **지문 보기(가, 나, 다, 라) 깔끔한 분리**:
    - 지문 내에서 '보기(가, 나, 다, 라)' 또는 '조건 예시'를 포함하는 문제인 경우, 지문 텍스트에 다 붙여 쓰지 말고 반드시 **'examples' 배열**에 각각 따로 담아 출력해 주세요.
-   - 예시:
-     question: "컴퓨팅 방사선촬영(CR)의 영상 획득 및 신호 처리 과정에 대한 설명으로 옳은 것을 모두 고른 것은?"
-     examples: ["가. 영상판(IP)에 X-선이 조사되면 잠상 형태로 에너지가 축적된다.", "나. 잠상이 축적된 영상판에 레이저 빔을 주사한다.", "다. 방출된 광신호는 D/A 변환기로 입력된다.", "라. 획득된 데이터는 PACS로 전송된다."]
 3. **5지선다 매력적 오답**: 객관식의 경우 보기(options) 5개를 만들고 헷갈리기 쉬운 함정을 포함하세요.
 
 ${patternGuideline}
@@ -1546,9 +1662,9 @@ ${patternGuideline}
 {
   "questions": [
     {
-      "question": "핵심 개념을 묻는 명확한 문제 지문 (예시 조건 문장 제외)",
+      "question": "핵심 전공 개념을 묻는 명확한 문제 지문",
       "examples": ["가. 보기 내용 1", "나. 보기 내용 2", "다. 보기 내용 3", "라. 보기 내용 4"],
-      "options": ["가, 다", "나, 라", "가, 나, 라", "나, 다, 라", "가, 나, 다, 라"],
+      "options": ["보기 1", "보기 2", "보기 3", "보기 4", "보기 5"],
       "answer": 0,
       "explanation": "정답 및 오답에 대한 상세한 해설"
     }
