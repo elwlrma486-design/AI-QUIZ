@@ -402,7 +402,6 @@
         async function handleLogout() {
             try {
                 await supabaseClient.auth.signOut({ scope: 'local' });
-                // 🛠️ 중요: 로그아웃 시 로컬 스토리지 데이터를 지우지 않도록 수정되었습니다.
                 currentUser = null;
                 studyParts = [];
                 folders = [];
@@ -418,7 +417,9 @@
             try {
                 await supabaseClient.from('user_ai_keys').delete().eq('user_id', currentUser.id);
                 await supabaseClient.from('study_data').delete().eq('user_id', currentUser.id);
-                localStorage.removeItem(`study_backup_${currentUser.id}`);
+                if (currentUser) {
+                    localStorage.removeItem(`study_backup_${currentUser.id}`);
+                }
                 alert("모든 계정 데이터가 완전 삭제되었습니다.");
                 await handleLogout();
             } catch (err) {
@@ -457,6 +458,7 @@
         async function loadStudyData() {
             if (!currentUser) return;
             try {
+                let hasLoaded = false;
                 // 1순위: Supabase 서버 DB에서 최신 데이터 조회
                 const { data, error } = await supabaseClient.from('study_data').select('*').eq('user_id', currentUser.id).single();
                 
@@ -465,8 +467,11 @@
                     folders = data.folders || [];
                     trashBin = data.trash_bin || [];
                     localStorage.setItem(`study_backup_${currentUser.id}`, JSON.stringify(data));
-                } else {
-                    // 2순위: DB 조회가 안 될 경우 로컬 스토리지 백업 데이터 로드
+                    hasLoaded = true;
+                }
+
+                // 2순위: DB에 데이터가 없거나 조회 실패 시 로컬 스토리지 백업 데이터 로드
+                if (!hasLoaded) {
                     const localBackup = localStorage.getItem(`study_backup_${currentUser.id}`);
                     if (localBackup) {
                         const parsed = JSON.parse(localBackup);
@@ -475,6 +480,7 @@
                         trashBin = parsed.trash_bin || [];
                     }
                 }
+
                 renderStudyParts();
                 renderTrashBin();
             } catch (err) {
@@ -932,6 +938,7 @@
                 };
 
                 studyParts.push(newPart);
+                // 🛠️ PDF 학습 완료 직후 즉시 DB 저장 수행
                 await saveStudyDataToDB();
                 renderStudyParts();
                 
@@ -1773,6 +1780,7 @@ ${part.patternText.substring(0, 15000)}
 
                     try {
                         let patternGuideline = "";
+                        // 🛠️ 패턴 분석을 하지 않았어도 오류 없이 정상 동작하도록 수정됨
                         if (targetPart.isAnalyzed && targetPart.analysisResult) {
                             patternGuideline = `
 [⭐ 출제 형식/스타일 참고 가이드라인]
