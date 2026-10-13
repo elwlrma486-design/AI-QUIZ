@@ -61,13 +61,25 @@
         .progress-bar-container { width: 100%; background-color: #f1f2f6; border-radius: 6px; height: 12px; overflow: hidden; }
         .progress-bar { width: 0%; height: 100%; background-color: #3498db; border-radius: 6px; transition: width 0.5s ease-in-out; }
 
-        .tab-menu { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; flex-wrap: wrap; }
+        /* 📌 상단 고정(Sticky) 탭 메뉴 스타일 */
+        .tab-menu { 
+            display: flex; 
+            gap: 8px; 
+            margin-bottom: 20px; 
+            border-bottom: 2px solid #eee; 
+            padding-bottom: 10px; 
+            flex-wrap: wrap; 
+            position: sticky; 
+            top: 0; 
+            background-color: #f9f9f9; 
+            z-index: 999; 
+            padding-top: 10px;
+        }
         .tab-btn { background-color: #95a5a6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 6px; }
         .tab-btn.active { background-color: #3498db !important; }
         .tab-close-x { font-size: 14px; margin-left: 4px; cursor: pointer; padding: 0 3px; border-radius: 50%; }
         .tab-close-x:hover { background: rgba(0,0,0,0.2); }
 
-        /* 📁 폴더 관리 스타일 */
         .folder-section { background: #fdfefe; border: 1px solid #dcdfe6; border-radius: 10px; padding: 15px; margin-bottom: 15px; }
         .folder-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .folder-title { font-weight: bold; color: #2c3e50; font-size: 15px; display: flex; align-items: center; gap: 6px; }
@@ -129,6 +141,7 @@
 
         <hr style="margin: 25px 0; border: none; border-top: 1px solid #eee;">
 
+        <!-- 📌 상단에 고정되는 탭 메뉴 영역 -->
         <div id="tab-menu-container" class="tab-menu">
             <button class="tab-btn active" onclick="switchTab('study-tab')">PDF 업로드 및 학습</button>
             <button class="tab-btn" onclick="switchTab('files-tab')">생성된 학습파일</button>
@@ -154,9 +167,7 @@
                 <button class="secondary" onclick="createNewFolder()">📁 새 폴더 만들기</button>
             </div>
 
-            <div id="folders-container" style="margin-top: 15px;">
-                <!-- 폴더 및 미분류 파일 목록 렌더링 영역 -->
-            </div>
+            <div id="folders-container" style="margin-top: 15px;"></div>
 
             <hr style="margin: 25px 0; border: none; border-top: 1px solid #eee;">
 
@@ -239,7 +250,6 @@
         </div>
     </div>
 
-    <!-- 패턴 분석용 파일 업로드 (PDF 또는 이미지 최대 5장 지원) -->
     <input type="file" id="hidden-pattern-file-input" accept="application/pdf,image/*" multiple style="display: none;" onchange="handlePatternFileSelected(event)">
 
     <script>
@@ -251,7 +261,7 @@
         
         let currentUser = null;
         let studyParts = []; 
-        let folders = []; // 📁 폴더 목록 [{ id, name, partIds }]
+        let folders = []; 
         let trashBin = [];   
         let activeModelNames = {};
         let exhaustedKeysCache = {};
@@ -418,7 +428,6 @@
             }
         }
 
-        // 📁 폴더 관리 함수들
         function createNewFolder() {
             const folderName = prompt("생성할 폴더 이름을 입력하세요:", "새 폴더");
             if (!folderName || !folderName.trim()) return;
@@ -455,12 +464,10 @@
         }
 
         function movePartToFolder(partId, folderIdStr) {
-            // 모든 폴더에서 해당 파트 ID 제거
             folders.forEach(f => {
                 f.partIds = f.partIds.filter(id => id !== partId);
             });
 
-            // 특정 폴더로 이동하는 경우
             if (folderIdStr !== "") {
                 const folderId = parseInt(folderIdStr);
                 const targetFolder = folders.find(f => f.id === folderId);
@@ -1072,7 +1079,6 @@ ${part.patternText.substring(0, 15000)}
             return null;
         }
 
-        // 📁 폴더 구조 및 파일 렌더링 함수
         function renderStudyParts() {
             const foldersContainer = document.getElementById('folders-container');
             const selectEl = document.getElementById('target-part-select');
@@ -1085,7 +1091,6 @@ ${part.patternText.substring(0, 15000)}
                 return;
             }
 
-            // 모든 파트 드롭다운 옵션 채우기
             studyParts.forEach(part => {
                 const opt = document.createElement('option');
                 opt.value = part.id;
@@ -1093,11 +1098,9 @@ ${part.patternText.substring(0, 15000)}
                 selectEl.appendChild(opt);
             });
 
-            // 이미 폴더에 할당된 파트 ID 집합
             let assignedPartIds = new Set();
             folders.forEach(f => f.partIds.forEach(id => assignedPartIds.add(id)));
 
-            // 1. 폴더별 렌더링
             folders.forEach(folder => {
                 const folderDiv = document.createElement('div');
                 folderDiv.className = 'folder-section';
@@ -1125,7 +1128,6 @@ ${part.patternText.substring(0, 15000)}
                 foldersContainer.appendChild(folderDiv);
             });
 
-            // 2. 미분류 파일 렌더링 (어떤 폴더에도 속하지 않은 파트)
             const unassignedParts = studyParts.filter(p => !assignedPartIds.has(p.id));
             if (unassignedParts.length > 0 || folders.length === 0) {
                 const unassignedDiv = document.createElement('div');
@@ -1168,7 +1170,6 @@ ${part.patternText.substring(0, 15000)}
 
             let compareBtnHtml = part.isAnalyzed ? `<button class="compare-btn" onclick="openComparisonModal(${part.id})">📊 비교</button>` : '';
 
-            // 폴더 이동 드롭다운 생성
             let folderSelectOptions = `<option value="">[미분류로 이동]</option>`;
             folders.forEach(f => {
                 const isCurrent = f.partIds.includes(part.id);
@@ -1448,7 +1449,6 @@ ${part.patternText.substring(0, 15000)}
             const idx = studyParts.findIndex(p => p.id === partId);
             if (idx > -1) {
                 const removed = studyParts.splice(idx, 1)[0];
-                // 폴더에서도 제거
                 folders.forEach(f => {
                     f.partIds = f.partIds.filter(id => id !== partId);
                 });
@@ -1567,7 +1567,6 @@ ${part.patternText.substring(0, 15000)}
             setTimeout(() => { wrapper.classList.add('hidden'); }, 800);
         }
 
-        // 🚀 교수 이름/행정 정보 필터링 및 무작위 범위 퀴즈 생성
         async function generateQuizFromLearnedData() {
             const targetPartId = parseInt(document.getElementById('target-part-select').value);
             const quizType = document.getElementById('quiz-type-select').value;
@@ -1638,7 +1637,6 @@ ${targetPart.analysisResult}
                             `;
                         }
 
-                        // 🚫 교수 이름 및 행정 정보 필터링 엄격 지침 추가
                         const prompt = `
 당신은 최고급 전문 학술/자격증 시험 출제 위원입니다. 제공된 학습용 PDF 문서 텍스트를 바탕으로 ${quizType === 'multiple' ? '고급 5지선다 객관식' : quizType === 'ox' ? 'O/X' : '주관식'} 퀴즈 ${quizCount}문항을 생성해 주세요.
 
