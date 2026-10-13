@@ -60,7 +60,7 @@
         .progress-bar-container { width: 100%; background-color: #f1f2f6; border-radius: 6px; height: 12px; overflow: hidden; }
         .progress-bar { width: 0%; height: 100%; background-color: #3498db; border-radius: 6px; transition: width 0.3s ease-in-out; }
 
-        /* 📌 상단 고정(Sticky) 탭 메뉴 스타일 */
+        /* 📌 상단 고정 탭 메뉴 스타일 */
         .tab-menu { 
             display: flex; 
             gap: 8px; 
@@ -79,11 +79,17 @@
         .tab-close-x { font-size: 14px; margin-left: 4px; cursor: pointer; padding: 0 3px; border-radius: 50%; }
         .tab-close-x:hover { background: rgba(0,0,0,0.2); }
 
-        .folder-section { background: #fdfefe; border: 1px solid #dcdfe6; border-radius: 10px; padding: 15px; margin-bottom: 15px; }
+        /* 🗂️ 폴더 및 드래그 앤 드롭 스타일 */
+        .folder-section { background: #fdfefe; border: 1px solid #dcdfe6; border-radius: 10px; padding: 15px; margin-bottom: 15px; transition: background 0.2s; }
+        .folder-section.drag-over { background: #e8f4fd; border: 2px dashed #3498db; }
         .folder-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .folder-title { font-weight: bold; color: #2c3e50; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+        .sub-folder-container { margin-left: 15px; border-left: 2px solid #eaeaea; padding-left: 12px; margin-top: 10px; }
 
-        .part-card { background: #fff; border: 1px solid #ddd; padding: 12px 15px; border-radius: 8px; margin-bottom: 10px; }
+        .part-card { background: #fff; border: 1px solid #ddd; padding: 12px 15px; border-radius: 8px; margin-bottom: 10px; cursor: grab; }
+        .part-card:active { cursor: grabbing; }
+        .part-card.dragging { opacity: 0.4; }
+
         .sub-quiz-item { background: #f8f9fa; border-left: 3px solid #3498db; padding: 8px 12px; margin: 6px 0 6px 20px; border-radius: 4px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
         .sub-quiz-item:hover { background: #ebf5fb; }
         .trash-item { display: flex; justify-content: space-between; align-items: center; font-size: 12px; background: #fff; padding: 6px 10px; margin-bottom: 5px; border-radius: 4px; border: 1px solid #f5c6cb; }
@@ -168,7 +174,7 @@
 
         <div id="study-tab" class="tab-content">
             <h3>📄 PDF 업로드 및 학습</h3>
-            <p style="font-size: 13px; color: #666;">최대 3개까지 PDF 파일을 업로드하여 학습할 수 있습니다. (대용량 파일은 페이지 수에 따라 시간이 소요됩니다)</p>
+            <p style="font-size: 13px; color: #666;">최대 3개까지 PDF 파일을 업로드하여 학습할 수 있습니다.</p>
 
             <label>PDF 파일 선택 (최대 3개)</label>
             <input type="file" id="pdf-file-input" accept="application/pdf" multiple onchange="handleFileSelection(event)">
@@ -176,7 +182,6 @@
             
             <button class="secondary" onclick="processPDFStudy()">학습후 파트생성</button>
             
-            <!-- ⏳ PDF 학습 전용 초단위 로딩바 -->
             <div id="pdf-loading-wrapper" class="progress-wrapper hidden">
                 <div class="progress-info">
                     <span id="pdf-progress-status-text">📄 PDF 텍스트 및 OCR 추출 중...</span>
@@ -190,10 +195,10 @@
 
         <div id="files-tab" class="tab-content hidden">
             <h3>📁 생성된 학습파일 및 폴더 관리</h3>
-            <p style="font-size: 13px; color: #666;">폴더를 생성하여 PDF 학습 파일들을 한곳에 모으고 이동·관리할 수 있습니다.</p>
+            <p style="font-size: 13px; color: #666;">최상위 폴더를 만들거나, 폴더 안에서 <strong>[하위 폴더 만들기]</strong>를 할 수 있습니다. 파일을 드래그하여 원하는 폴더로 이동해보세요!</p>
             
             <div style="margin: 15px 0; display: flex; gap: 10px;">
-                <button class="secondary" onclick="createNewFolder()">📁 새 폴더 만들기</button>
+                <button class="secondary" onclick="createNewFolder(null)">📁 최상위 새 폴더 만들기</button>
             </div>
 
             <div id="folders-container" style="margin-top: 15px;"></div>
@@ -228,7 +233,6 @@
 
             <button onclick="generateQuizFromLearnedData()">AI 퀴즈 생성하기</button>
             
-            <!-- ⏳ 퀴즈 생성 전용 초단위 로딩바 -->
             <div id="quiz-loading-wrapper" class="progress-wrapper hidden">
                 <div class="progress-info">
                     <span id="progress-status-text">🤖 AI가 PDF를 분석하여 퀴즈 생성 중...</span>
@@ -292,7 +296,7 @@
         
         let currentUser = null;
         let studyParts = []; 
-        let folders = []; 
+        let folders = []; // 계층형 폴더 구조 지원 (parentId 포함)
         let trashBin = [];   
         let activeModelNames = {};
         let exhaustedKeysCache = {};
@@ -438,7 +442,6 @@
             document.getElementById('user-email').textContent = currentUser.email;
         }
 
-        // 🎯 모든 행적(학습 파트, 폴더, 퀴즈, 휴지통) Supabase 즉시 동기화 저장 함수
         async function saveStudyDataToDB() {
             if (!currentUser) return;
             try {
@@ -449,8 +452,7 @@
                     trash_bin: trashBin,
                     updated_at: new Date().toISOString()
                 };
-                const { error } = await supabaseClient.from('study_data').upsert(payload, { onConflict: 'user_id' });
-                if (error) console.error("DB 저장 오류:", error);
+                await supabaseClient.from('study_data').upsert(payload, { onConflict: 'user_id' });
             } catch (err) {
                 console.error("데이터 저장 중 예외:", err);
             }
@@ -473,13 +475,15 @@
             }
         }
 
-        function createNewFolder() {
-            const folderName = prompt("생성할 폴더 이름을 입력하세요:", "새 폴더");
+        // 📁 폴더 생성 (parentId가 있으면 하위 폴더)
+        function createNewFolder(parentId = null) {
+            const folderName = prompt(parentId ? "생성할 하위 폴더 이름을 입력하세요:" : "생성할 폴더 이름을 입력하세요:", "새 폴더");
             if (!folderName || !folderName.trim()) return;
 
             const newFolder = {
                 id: Date.now(),
                 name: folderName.trim(),
+                parentId: parentId, // 상위 폴더 ID 지정 (계층 구조)
                 partIds: []
             };
 
@@ -500,11 +504,61 @@
         }
 
         function deleteFolder(folderId) {
-            const folderIndex = folders.findIndex(f => f.id === folderId);
-            if (folderIndex > -1) {
-                folders.splice(folderIndex, 1);
-                saveStudyDataToDB();
-                renderStudyParts();
+            // 하위 폴더나 속한 폴더들 연쇄 삭제 처리
+            const getDescendantFolderIds = (fid) => {
+                let ids = [fid];
+                folders.filter(f => f.parentId === fid).forEach(sub => {
+                    ids = ids.concat(getDescendantFolderIds(sub.id));
+                });
+                return ids;
+            };
+
+            const idsToDelete = getDescendantFolderIds(folderId);
+            folders = folders.filter(f => !idsToDelete.includes(f.id));
+
+            saveStudyDataToDB();
+            renderStudyParts();
+        }
+
+        // 🎯 드래그 앤 드롭 이벤트 핸들러
+        function handleDragStart(e, partId) {
+            e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'part', id: partId }));
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        function handleDropToFolder(e, targetFolderId) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+
+            const rawData = e.dataTransfer.getData('text/plain');
+            if (!rawData) return;
+
+            try {
+                const data = JSON.parse(rawData);
+                if (data.type === 'part') {
+                    const partId = data.id;
+                    // 모든 폴더에서 해당 파트 제거 후 대상 폴더에 추가
+                    folders.forEach(f => {
+                        f.partIds = f.partIds.filter(id => id !== partId);
+                    });
+                    const targetFolder = folders.find(f => f.id === targetFolderId);
+                    if (targetFolder) {
+                        targetFolder.partIds.push(partId);
+                    }
+                    saveStudyDataToDB();
+                    renderStudyParts();
+                }
+            } catch (err) {
+                console.error("드래그 앤 드롭 처리 오류:", err);
             }
         }
 
@@ -807,7 +861,6 @@
             listContainer.textContent = `선택된 파일 (${files.length}/3): ${fileNames}`;
         }
 
-        // ⏳ PDF 학습 전용 초단위 로딩바 시작 함수
         function startPdfTimerProgress(estimatedSeconds) {
             const wrapper = document.getElementById('pdf-loading-wrapper');
             const fill = document.getElementById('pdf-progress-bar-fill');
@@ -853,7 +906,6 @@
                 return;
             }
 
-            // 대용량 파일(350페이지 등) 감안하여 페이지 수 비례 예상 시간 산출 (페이지당 약 0.15초 가정, 최소 15초)
             let totalPagesApprox = 0;
             for (let f of fileInput.files) {
                 try {
@@ -916,7 +968,7 @@
                 };
 
                 studyParts.push(newPart);
-                await saveStudyDataToDB(); // 🎯 즉시 Supabase 저장
+                await saveStudyDataToDB();
                 renderStudyParts();
                 
                 alert(`✅ 학습이 완료되고 안전하게 저장되었습니다! '생성된 학습파일' 탭에서 [${firstFileName}]을 확인하세요.`);
@@ -980,7 +1032,7 @@
                 part.patternText = part.patternText ? (part.patternText + "\n\n" + patternCombinedText) : patternCombinedText;
                 part.isAnalyzed = false; 
 
-                await saveStudyDataToDB(); // 🎯 패턴 업로드 즉시 DB 저장
+                await saveStudyDataToDB();
                 renderStudyParts();
 
                 alert(`✅ 파일(${uploadedFileNames.join(", ")}) 추가 업로드 및 저장 완료!\n이제 [분석하기] 버튼을 눌러 추가 분석을 진행하세요.`);
@@ -1050,7 +1102,7 @@ ${part.patternText.substring(0, 15000)}
 
                 part.isAnalyzed = true;
                 part.analysisResult = analysisText;
-                await saveStudyDataToDB(); // 🎯 분석 결과 즉시 DB 저장
+                await saveStudyDataToDB();
                 renderStudyParts();
 
                 alert(`✅ [${part.name}] 패턴 형식 분석 및 저장 완료!`);
@@ -1167,6 +1219,7 @@ ${part.patternText.substring(0, 15000)}
             return null;
         }
 
+        // 🗂️ 계층형 폴더 및 드래그 앤 드롭 렌더링 함수
         function renderStudyParts() {
             const foldersContainer = document.getElementById('folders-container');
             const selectEl = document.getElementById('target-part-select');
@@ -1174,8 +1227,8 @@ ${part.patternText.substring(0, 15000)}
             foldersContainer.innerHTML = '';
             selectEl.innerHTML = '<option value="">-- 학습 파트를 먼저 선택해주세요 --</option>';
 
-            if (studyParts.length === 0) {
-                foldersContainer.innerHTML = '<p style="font-size: 13px; color: #888;">생성된 학습 파트가 없습니다.</p>';
+            if (studyParts.length === 0 && folders.length === 0) {
+                foldersContainer.innerHTML = '<p style="font-size: 13px; color: #888;">생성된 학습 파일이나 폴더가 없습니다.</p>';
                 return;
             }
 
@@ -1186,41 +1239,66 @@ ${part.patternText.substring(0, 15000)}
                 selectEl.appendChild(opt);
             });
 
-            let assignedPartIds = new Set();
-            folders.forEach(f => f.partIds.forEach(id => assignedPartIds.add(id)));
+            // 재귀적으로 폴더 렌더링 (하위 폴더 지원)
+            function renderFolderNode(parentId, containerEl) {
+                const currentFolders = folders.filter(f => (f.parentId || null) === parentId);
 
-            folders.forEach(folder => {
-                const folderDiv = document.createElement('div');
-                folderDiv.className = 'folder-section';
-                
-                let folderPartsHtml = '';
-                const folderParts = studyParts.filter(p => folder.partIds.includes(p.id));
+                currentFolders.forEach(folder => {
+                    const folderDiv = document.createElement('div');
+                    folderDiv.className = 'folder-section';
+                    // 드래그 앤 드롭 타겟 설정
+                    folderDiv.ondragover = handleDragOver;
+                    folderDiv.ondragleave = handleDragLeave;
+                    folderDiv.ondrop = (e) => handleDropToFolder(e, folder.id);
 
-                if (folderParts.length === 0) {
-                    folderPartsHtml = '<div style="font-size: 12px; color: #aaa; padding: 5px 0;">폴더가 비어 있습니다. 아래에서 파일을 이동해 보세요.</div>';
-                } else {
-                    folderParts.forEach(part => {
-                        folderPartsHtml += buildPartCardHtml(part);
-                    });
-                }
+                    const folderParts = studyParts.filter(p => folder.partIds && folder.partIds.includes(p.id));
 
-                folderDiv.innerHTML = `
-                    <div class="folder-header">
-                        <div class="folder-title" onclick="editFolderName(${folder.id})" title="클릭하여 폴더명 변경" style="cursor:pointer;">
-                            📁 <span>${folder.name}</span> (${folderParts.length}개)
+                    let partsHtml = '';
+                    if (folderParts.length > 0) {
+                        folderParts.forEach(part => {
+                            partsHtml += buildPartCardHtml(part);
+                        });
+                    }
+
+                    folderDiv.innerHTML = `
+                        <div class="folder-header">
+                            <div class="folder-title" onclick="editFolderName(${folder.id})" title="클릭하여 폴더명 변경" style="cursor:pointer;">
+                                📁 <span>${folder.name}</span> (${folderParts.length}개)
+                            </div>
+                            <div style="display: flex; gap: 4px;">
+                                <button class="secondary" style="padding: 2px 6px; font-size: 10px;" onclick="createNewFolder(${folder.id})">+ 하위폴더</button>
+                                <button class="danger" style="padding: 2px 6px; font-size: 10px;" onclick="deleteFolder(${folder.id})">삭제</button>
+                            </div>
                         </div>
-                        <button class="danger" style="padding: 4px 8px; font-size: 11px;" onclick="deleteFolder(${folder.id})">폴더 삭제</button>
-                    </div>
-                    <div style="margin-top: 10px;">${folderPartsHtml}</div>
-                `;
-                foldersContainer.appendChild(folderDiv);
+                        <div style="margin-top: 10px;">${partsHtml || '<div style="font-size: 12px; color: #aaa; padding: 2px 0;">파일을 이 곳으로 드래그하거나 아래에서 이동하세요.</div>'}</div>
+                        <div class="sub-folder-container" id="sub-folder-container-${folder.id}"></div>
+                    `;
+
+                    containerEl.appendChild(folderDiv);
+
+                    // 하위 폴더 재귀 호출
+                    const subContainer = folderDiv.querySelector(`#sub-folder-container-${folder.id}`);
+                    renderFolderNode(folder.id, subContainer);
+                });
+            }
+
+            // 최상위 폴더부터 렌더링 (parentId === null)
+            renderFolderNode(null, foldersContainer);
+
+            // 미분류 파일 처리
+            let assignedPartIds = new Set();
+            folders.forEach(f => {
+                if (f.partIds) f.partIds.forEach(id => assignedPartIds.add(id));
             });
 
             const unassignedParts = studyParts.filter(p => !assignedPartIds.has(p.id));
-            if (unassignedParts.length > 0 || folders.length === 0) {
+            if (unassignedParts.length > 0) {
                 const unassignedDiv = document.createElement('div');
                 unassignedDiv.className = 'folder-section';
                 unassignedDiv.style.borderStyle = 'dashed';
+                unassignedDiv.ondragover = handleDragOver;
+                unassignedDiv.ondragleave = handleDragLeave;
+                unassignedDiv.ondrop = (e) => handleDropToFolder(e, null); // 미분류 영역으로 드롭 시
 
                 let unassignedHtml = '';
                 unassignedParts.forEach(part => {
@@ -1231,10 +1309,25 @@ ${part.patternText.substring(0, 15000)}
                     <div class="folder-header">
                         <div class="folder-title">📂 미분류 학습 파일 (${unassignedParts.length}개)</div>
                     </div>
-                    <div style="margin-top: 10px;">${unassignedHtml || '<div style="font-size: 12px; color: #aaa;">미분류 파일이 없습니다.</div>'}</div>
+                    <div style="margin-top: 10px;">${unassignedHtml}</div>
                 `;
                 foldersContainer.appendChild(unassignedDiv);
             }
+        }
+
+        // 전체 폴더 목록을 셀렉트 박스 옵션으로 구성하는 헬퍼
+        function buildFolderSelectOptions(currentPartId) {
+            let options = `<option value="">[최상위/미분류로 이동]</option>`;
+            
+            function recurse(pid, prefix) {
+                folders.filter(f => (f.parentId || null) === pid).forEach(f => {
+                    const isAssigned = f.partIds && f.partIds.includes(currentPartId);
+                    options += `<option value="${f.id}" ${isAssigned ? 'selected' : ''}>${prefix}📁 ${f.name}</option>`;
+                    recurse(f.id, prefix + " 👉 ");
+                });
+            }
+            recurse(null, "");
+            return options;
         }
 
         function buildPartCardHtml(part) {
@@ -1250,19 +1343,10 @@ ${part.patternText.substring(0, 15000)}
                 analyzeBtnClass = "analyze-action-btn ready-analyze";
                 analyzeBtnText = "분석하기";
                 analyzeBtnDisabled = false;
-            } else {
-                analyzeBtnClass = "analyze-action-btn";
-                analyzeBtnText = "분석하기";
-                analyzeBtnDisabled = true;
             }
 
             let compareBtnHtml = part.isAnalyzed ? `<button class="compare-btn" onclick="openComparisonModal(${part.id})">📊 비교</button>` : '';
-
-            let folderSelectOptions = `<option value="">[미분류로 이동]</option>`;
-            folders.forEach(f => {
-                const isCurrent = f.partIds.includes(part.id);
-                folderSelectOptions += `<option value="${f.id}" ${isCurrent ? 'selected' : ''}>📁 ${f.name}</option>`;
-            });
+            let folderSelectOptions = buildFolderSelectOptions(part.id);
 
             let subQuizzesHtml = '';
             if (!part.quizzes || part.quizzes.length === 0) {
@@ -1281,7 +1365,7 @@ ${part.patternText.substring(0, 15000)}
             }
 
             return `
-                <div class="part-card">
+                <div class="part-card" draggable="true" ondragstart="handleDragStart(event, ${part.id})">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
                         <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
                             <span style="font-weight: bold; color: #2c3e50; cursor: pointer;" onclick="editPartName(${part.id})" title="클릭하여 이름 변경">
@@ -1292,7 +1376,7 @@ ${part.patternText.substring(0, 15000)}
                             ${compareBtnHtml}
                         </div>
                         <div style="display: flex; align-items: center; gap: 6px;">
-                            <select style="margin:0; padding:4px; font-size:11px; width:120px;" onchange="movePartToFolder(${part.id}, this.value)">
+                            <select style="margin:0; padding:4px; font-size:11px; width:130px;" onchange="movePartToFolder(${part.id}, this.value)">
                                 ${folderSelectOptions}
                             </select>
                             <button class="danger" style="padding: 4px 8px; font-size: 11px;" onclick="deletePart(${part.id})">삭제</button>
@@ -1525,7 +1609,7 @@ ${part.patternText.substring(0, 15000)}
                 if (quiz) {
                     quiz.hasCompleted = true;
                     quiz.resultHtml = resultHtml;
-                    await saveStudyDataToDB(); // 🎯 시험 결과 저장 즉시 DB 동기화
+                    await saveStudyDataToDB();
                 }
             }
             renderStudyParts();
@@ -1564,7 +1648,7 @@ ${part.patternText.substring(0, 15000)}
             if (idx > -1) {
                 const removed = studyParts.splice(idx, 1)[0];
                 folders.forEach(f => {
-                    f.partIds = f.partIds.filter(id => id !== partId);
+                    if (f.partIds) f.partIds = f.partIds.filter(id => id !== partId);
                 });
 
                 removed.quizzes.forEach(q => {
@@ -1750,7 +1834,7 @@ ${targetPart.analysisResult}
                             typeSpecificInstruction = `
 [🎯 [도해/그림 분석형] 특별 출제 지침]
 - 문서 내에 포함된 그림/도해(예: [그림 1-1] 인체의 구조적 단계, [그림 1-14] 세포소기관 등)의 OCR 인식 내용과 설명 내용을 적극 활용하세요.
-- 그림 속 화살표가 가리키는 **신체 부위, 세포소기관 명칭, 단계별 순서(화학적 단계 -> 세포 단계 -> 조직 단계 등)**를 맞추거나 빈칸을 채우는 형태의 도해 문제를 출제하세요.
+- 그림 속 화살표가 가리키는 **신체 부위, 세포소기관 명칭, 단계별 순서**를 맞추거나 빈칸을 채우는 형태의 도해 문제를 출제하세요.
                             `;
                         } else if (quizType === 'multiple') {
                             typeSpecificInstruction = `
@@ -1836,7 +1920,7 @@ ${textChunk}
                 };
 
                 targetPart.quizzes.push(newQuizObj);
-                await saveStudyDataToDB(); // 🎯 퀴즈 생성 즉시 DB 저장
+                await saveStudyDataToDB();
                 renderStudyParts();
 
                 openExamTab(targetPart.id, newQuizId);
