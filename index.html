@@ -79,17 +79,12 @@
         .tab-close-x { font-size: 14px; margin-left: 4px; cursor: pointer; padding: 0 3px; border-radius: 50%; }
         .tab-close-x:hover { background: rgba(0,0,0,0.2); }
 
-        /* 🗂️ 폴더 및 드래그 앤 드롭 스타일 */
-        .folder-section { background: #fdfefe; border: 1px solid #dcdfe6; border-radius: 10px; padding: 15px; margin-bottom: 15px; transition: background 0.2s; }
-        .folder-section.drag-over { background: #e8f4fd; border: 2px dashed #3498db; }
+        .folder-section { background: #fdfefe; border: 1px solid #dcdfe6; border-radius: 10px; padding: 15px; margin-bottom: 15px; }
         .folder-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .folder-title { font-weight: bold; color: #2c3e50; font-size: 15px; display: flex; align-items: center; gap: 6px; }
         .sub-folder-container { margin-left: 15px; border-left: 2px solid #eaeaea; padding-left: 12px; margin-top: 10px; }
 
-        .part-card { background: #fff; border: 1px solid #ddd; padding: 12px 15px; border-radius: 8px; margin-bottom: 10px; cursor: grab; }
-        .part-card:active { cursor: grabbing; }
-        .part-card.dragging { opacity: 0.4; }
-
+        .part-card { background: #fff; border: 1px solid #ddd; padding: 12px 15px; border-radius: 8px; margin-bottom: 10px; }
         .sub-quiz-item { background: #f8f9fa; border-left: 3px solid #3498db; padding: 8px 12px; margin: 6px 0 6px 20px; border-radius: 4px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
         .sub-quiz-item:hover { background: #ebf5fb; }
         .trash-item { display: flex; justify-content: space-between; align-items: center; font-size: 12px; background: #fff; padding: 6px 10px; margin-bottom: 5px; border-radius: 4px; border: 1px solid #f5c6cb; }
@@ -195,7 +190,7 @@
 
         <div id="files-tab" class="tab-content hidden">
             <h3>📁 생성된 학습파일 및 폴더 관리</h3>
-            <p style="font-size: 13px; color: #666;">최상위 폴더를 만들거나, 폴더 안에서 <strong>[하위 폴더 만들기]</strong>를 할 수 있습니다. 파일을 드래그하여 원하는 폴더로 이동해보세요!</p>
+            <p style="font-size: 13px; color: #666;">최상위 폴더를 만들거나 하위 폴더를 추가하여 체계적으로 관리할 수 있습니다.</p>
             
             <div style="margin: 15px 0; display: flex; gap: 10px;">
                 <button class="secondary" onclick="createNewFolder(null)">📁 최상위 새 폴더 만들기</button>
@@ -214,8 +209,7 @@
 
             <label>퀴즈 유형 설정</label>
             <select id="quiz-type-select">
-                <option value="multiple">객관식 퀴즈 (5지 선다)</option>
-                <option value="diagram" selected>🖼️ 도해/그림 분석형 (구조 및 명칭 빈칸 맞추기)</option>
+                <option value="multiple" selected>객관식 퀴즈 (5지 선다)</option>
                 <option value="ox">O/X 퀴즈</option>
                 <option value="short">주관식/단답형 퀴즈</option>
             </select>
@@ -296,7 +290,7 @@
         
         let currentUser = null;
         let studyParts = []; 
-        let folders = []; // 계층형 폴더 구조 지원 (parentId 포함)
+        let folders = []; 
         let trashBin = [];   
         let activeModelNames = {};
         let exhaustedKeysCache = {};
@@ -475,7 +469,6 @@
             }
         }
 
-        // 📁 폴더 생성 (parentId가 있으면 하위 폴더)
         function createNewFolder(parentId = null) {
             const folderName = prompt(parentId ? "생성할 하위 폴더 이름을 입력하세요:" : "생성할 폴더 이름을 입력하세요:", "새 폴더");
             if (!folderName || !folderName.trim()) return;
@@ -483,7 +476,7 @@
             const newFolder = {
                 id: Date.now(),
                 name: folderName.trim(),
-                parentId: parentId, // 상위 폴더 ID 지정 (계층 구조)
+                parentId: parentId,
                 partIds: []
             };
 
@@ -504,7 +497,6 @@
         }
 
         function deleteFolder(folderId) {
-            // 하위 폴더나 속한 폴더들 연쇄 삭제 처리
             const getDescendantFolderIds = (fid) => {
                 let ids = [fid];
                 folders.filter(f => f.parentId === fid).forEach(sub => {
@@ -520,57 +512,16 @@
             renderStudyParts();
         }
 
-        // 🎯 드래그 앤 드롭 이벤트 핸들러
-        function handleDragStart(e, partId) {
-            e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'part', id: partId }));
-        }
-
-        function handleDragOver(e) {
-            e.preventDefault();
-            e.currentTarget.classList.add('drag-over');
-        }
-
-        function handleDragLeave(e) {
-            e.preventDefault();
-            e.currentTarget.classList.remove('drag-over');
-        }
-
-        function handleDropToFolder(e, targetFolderId) {
-            e.preventDefault();
-            e.currentTarget.classList.remove('drag-over');
-
-            const rawData = e.dataTransfer.getData('text/plain');
-            if (!rawData) return;
-
-            try {
-                const data = JSON.parse(rawData);
-                if (data.type === 'part') {
-                    const partId = data.id;
-                    // 모든 폴더에서 해당 파트 제거 후 대상 폴더에 추가
-                    folders.forEach(f => {
-                        f.partIds = f.partIds.filter(id => id !== partId);
-                    });
-                    const targetFolder = folders.find(f => f.id === targetFolderId);
-                    if (targetFolder) {
-                        targetFolder.partIds.push(partId);
-                    }
-                    saveStudyDataToDB();
-                    renderStudyParts();
-                }
-            } catch (err) {
-                console.error("드래그 앤 드롭 처리 오류:", err);
-            }
-        }
-
         function movePartToFolder(partId, folderIdStr) {
             folders.forEach(f => {
-                f.partIds = f.partIds.filter(id => id !== partId);
+                if (f.partIds) f.partIds = f.partIds.filter(id => id !== partId);
             });
 
             if (folderIdStr !== "") {
                 const folderId = parseInt(folderIdStr);
                 const targetFolder = folders.find(f => f.id === folderId);
                 if (targetFolder) {
+                    if (!targetFolder.partIds) targetFolder.partIds = [];
                     targetFolder.partIds.push(partId);
                 }
             }
@@ -873,7 +824,7 @@
             let elapsedSeconds = 0;
             fill.style.width = '3%';
             percentText.textContent = `3% (남은 시간: 약 ${estimatedSeconds}초)`;
-            statusTextEl.textContent = `📄 대용량 PDF 텍스트 및 도해 OCR 추출 중...`;
+            statusTextEl.textContent = `📄 대용량 PDF 텍스트 및 OCR 추출 중...`;
 
             pdfProgressInterval = setInterval(() => {
                 elapsedSeconds++;
@@ -1219,7 +1170,6 @@ ${part.patternText.substring(0, 15000)}
             return null;
         }
 
-        // 🗂️ 계층형 폴더 및 드래그 앤 드롭 렌더링 함수
         function renderStudyParts() {
             const foldersContainer = document.getElementById('folders-container');
             const selectEl = document.getElementById('target-part-select');
@@ -1239,17 +1189,12 @@ ${part.patternText.substring(0, 15000)}
                 selectEl.appendChild(opt);
             });
 
-            // 재귀적으로 폴더 렌더링 (하위 폴더 지원)
             function renderFolderNode(parentId, containerEl) {
                 const currentFolders = folders.filter(f => (f.parentId || null) === parentId);
 
                 currentFolders.forEach(folder => {
                     const folderDiv = document.createElement('div');
                     folderDiv.className = 'folder-section';
-                    // 드래그 앤 드롭 타겟 설정
-                    folderDiv.ondragover = handleDragOver;
-                    folderDiv.ondragleave = handleDragLeave;
-                    folderDiv.ondrop = (e) => handleDropToFolder(e, folder.id);
 
                     const folderParts = studyParts.filter(p => folder.partIds && folder.partIds.includes(p.id));
 
@@ -1270,35 +1215,29 @@ ${part.patternText.substring(0, 15000)}
                                 <button class="danger" style="padding: 2px 6px; font-size: 10px;" onclick="deleteFolder(${folder.id})">삭제</button>
                             </div>
                         </div>
-                        <div style="margin-top: 10px;">${partsHtml || '<div style="font-size: 12px; color: #aaa; padding: 2px 0;">파일을 이 곳으로 드래그하거나 아래에서 이동하세요.</div>'}</div>
+                        <div style="margin-top: 10px;">${partsHtml || '<div style="font-size: 12px; color: #aaa; padding: 2px 0;">폴더가 비어 있습니다. 아래 셀렉트 박스에서 이동해 보세요.</div>'}</div>
                         <div class="sub-folder-container" id="sub-folder-container-${folder.id}"></div>
                     `;
 
                     containerEl.appendChild(folderDiv);
 
-                    // 하위 폴더 재귀 호출
                     const subContainer = folderDiv.querySelector(`#sub-folder-container-${folder.id}`);
                     renderFolderNode(folder.id, subContainer);
                 });
             }
 
-            // 최상위 폴더부터 렌더링 (parentId === null)
             renderFolderNode(null, foldersContainer);
 
-            // 미분류 파일 처리
             let assignedPartIds = new Set();
             folders.forEach(f => {
                 if (f.partIds) f.partIds.forEach(id => assignedPartIds.add(id));
             });
 
             const unassignedParts = studyParts.filter(p => !assignedPartIds.has(p.id));
-            if (unassignedParts.length > 0) {
+            if (unassignedParts.length > 0 || folders.length === 0) {
                 const unassignedDiv = document.createElement('div');
                 unassignedDiv.className = 'folder-section';
                 unassignedDiv.style.borderStyle = 'dashed';
-                unassignedDiv.ondragover = handleDragOver;
-                unassignedDiv.ondragleave = handleDragLeave;
-                unassignedDiv.ondrop = (e) => handleDropToFolder(e, null); // 미분류 영역으로 드롭 시
 
                 let unassignedHtml = '';
                 unassignedParts.forEach(part => {
@@ -1309,15 +1248,14 @@ ${part.patternText.substring(0, 15000)}
                     <div class="folder-header">
                         <div class="folder-title">📂 미분류 학습 파일 (${unassignedParts.length}개)</div>
                     </div>
-                    <div style="margin-top: 10px;">${unassignedHtml}</div>
+                    <div style="margin-top: 10px;">${unassignedHtml || '<div style="font-size: 12px; color: #aaa;">미분류 파일이 없습니다.</div>'}</div>
                 `;
                 foldersContainer.appendChild(unassignedDiv);
             }
         }
 
-        // 전체 폴더 목록을 셀렉트 박스 옵션으로 구성하는 헬퍼
         function buildFolderSelectOptions(currentPartId) {
-            let options = `<option value="">[최상위/미분류로 이동]</option>`;
+            let options = `<option value="">[미분류로 이동]</option>`;
             
             function recurse(pid, prefix) {
                 folders.filter(f => (f.parentId || null) === pid).forEach(f => {
@@ -1353,7 +1291,7 @@ ${part.patternText.substring(0, 15000)}
                 subQuizzesHtml = '<div style="font-size: 12px; color: #aaa; margin-left: 20px;">생성된 하위 퀴즈가 없습니다.</div>';
             } else {
                 part.quizzes.forEach((quiz, qIdx) => {
-                    let typeLabel = quiz.type === 'multiple' ? '5지선다' : quiz.type === 'diagram' ? '도해분석' : quiz.type === 'ox' ? 'O/X' : '주관식';
+                    let typeLabel = quiz.type === 'multiple' ? '5지선다' : quiz.type === 'ox' ? 'O/X' : '주관식';
                     let resultBtnHtml = (quiz.hasCompleted && quiz.resultHtml) ? `<button class="result-btn" onclick="event.stopPropagation(); openResultTab('${part.id}', '${quiz.id}')">📊 결과</button>` : '';
                     subQuizzesHtml += `
                         <div class="sub-quiz-item" onclick="openExamTab(${part.id}, ${quiz.id})">
@@ -1365,7 +1303,7 @@ ${part.patternText.substring(0, 15000)}
             }
 
             return `
-                <div class="part-card" draggable="true" ondragstart="handleDragStart(event, ${part.id})">
+                <div class="part-card">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
                         <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
                             <span style="font-weight: bold; color: #2c3e50; cursor: pointer;" onclick="editPartName(${part.id})" title="클릭하여 이름 변경">
@@ -1744,7 +1682,7 @@ ${part.patternText.substring(0, 15000)}
 
             fill.style.width = '5%';
             percentText.textContent = `5% (남은 시간: 약 ${totalEstimatedSeconds}초)`;
-            statusTextEl.textContent = `🤖 도해 분석 및 맞춤형 문제 생성 중...`;
+            statusTextEl.textContent = `🤖 맞춤형 문제 생성 중...`;
 
             progressInterval = setInterval(() => {
                 elapsedSeconds++;
@@ -1830,16 +1768,15 @@ ${targetPart.analysisResult}
                         }
 
                         let typeSpecificInstruction = "";
-                        if (quizType === 'diagram') {
-                            typeSpecificInstruction = `
-[🎯 [도해/그림 분석형] 특별 출제 지침]
-- 문서 내에 포함된 그림/도해(예: [그림 1-1] 인체의 구조적 단계, [그림 1-14] 세포소기관 등)의 OCR 인식 내용과 설명 내용을 적극 활용하세요.
-- 그림 속 화살표가 가리키는 **신체 부위, 세포소기관 명칭, 단계별 순서**를 맞추거나 빈칸을 채우는 형태의 도해 문제를 출제하세요.
-                            `;
-                        } else if (quizType === 'multiple') {
+                        if (quizType === 'multiple') {
                             typeSpecificInstruction = `
 [🎯 [고급 5지선다 객관식] 출제 지침]
 - 계산 및 수치형, 비교 대조형, 임상 응용형 문제를 골고루 포함하세요. 교재 목차나 행정적 질문은 절대 금지합니다.
+                            `;
+                        } else if (quizType === 'ox') {
+                            typeSpecificInstruction = `
+[🎯 [O/X 퀴즈] 출제 지침]
+- 명확한 사실 관계나 전공 지식의 참/거짓을 판별하는 문제를 출제하세요. options는 ["O", "X"]로 구성하세요.
                             `;
                         }
 
@@ -1865,8 +1802,8 @@ ${patternGuideline}
 {
   "questions": [
     {
-      "question": "핵심 전공 개념, 도해 구조, 또는 계산을 묻는 명확한 문제 지문",
-      "examples": ["가. 보기 조건 1", "나. 보기 조건 2", "다. 보기 조건 3", "라. 보기 조건 4"],
+      "question": "핵심 전공 개념 또는 임상 내용을 묻는 명확한 문제 지문",
+      "examples": ["가. 보기 조건 1", "나. 보기 조건 2"],
       "options": ["보기 1", "보기 2", "보기 3", "보기 4", "보기 5"],
       "answer": 0,
       "explanation": "정답 산출 근거 및 상세한 학술적 해설"
@@ -1876,7 +1813,7 @@ ${patternGuideline}
 
 주의사항:
 - 가, 나, 다, 라 예시 조건이 필요 없는 일반 문항은 'examples' 배열을 빈 배열 []로 두세요.
-- 'answer'는 정답 인덱스 번호(0~4)입니다.
+- 'answer'는 정답 인덱스 번호입니다.
 - 문항 수: 정확히 ${quizCount}문항.
 
 [학습 문서 전체 내용]
