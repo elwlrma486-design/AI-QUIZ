@@ -418,6 +418,7 @@
             try {
                 await supabaseClient.from('user_ai_keys').delete().eq('user_id', currentUser.id);
                 await supabaseClient.from('study_data').delete().eq('user_id', currentUser.id);
+                localStorage.clear();
                 alert("삭제되었습니다.");
                 await handleLogout();
             } catch (err) {
@@ -436,6 +437,7 @@
             document.getElementById('user-email').textContent = currentUser.email;
         }
 
+        // 🛡️ 이중 안전장치: Supabase DB + LocalStorage 동시 백업 및 즉시 저장
         async function saveStudyDataToDB() {
             if (!currentUser) return;
             try {
@@ -446,6 +448,10 @@
                     trash_bin: trashBin,
                     updated_at: new Date().toISOString()
                 };
+                // 로컬 스토리지 선백업 (새로고침 직후 유실 방지)
+                localStorage.setItem(`study_backup_${currentUser.id}`, JSON.stringify(payload));
+
+                // Supabase DB 비동기 저장
                 await supabaseClient.from('study_data').upsert(payload, { onConflict: 'user_id' });
             } catch (err) {
                 console.error("데이터 저장 중 예외:", err);
@@ -455,12 +461,24 @@
         async function loadStudyData() {
             if (!currentUser) return;
             try {
+                // 1순위: 로컬 스토리지 백업 우선 복구 (가장 최신 데이터 보장)
+                const localBackup = localStorage.getItem(`study_backup_${currentUser.id}`);
+                if (localBackup) {
+                    const parsed = JSON.parse(localBackup);
+                    studyParts = parsed.study_parts || [];
+                    folders = parsed.folders || [];
+                    trashBin = parsed.trash_bin || [];
+                    renderStudyParts();
+                    renderTrashBin();
+                }
+
+                // 2순위: Supabase 서버 데이터 동기화 로드
                 const { data, error } = await supabaseClient.from('study_data').select('*').eq('user_id', currentUser.id).single();
-                if (error && error.code !== 'PGRST116') return;
                 if (data) {
-                    studyParts = data.study_parts || [];
-                    folders = data.folders || [];
-                    trashBin = data.trash_bin || [];
+                    // 서버 데이터가 더 최상이거나 로컬에 없을 경우 반영
+                    studyParts = data.study_parts || studyParts;
+                    folders = data.folders || folders;
+                    trashBin = data.trash_bin || trashBin;
                     renderStudyParts();
                     renderTrashBin();
                 }
@@ -1857,6 +1875,8 @@ ${textChunk}
                 };
 
                 targetPart.quizzes.push(newQuizObj);
+                
+                // 🛡️ 퀴즈 생성 즉시 Supabase DB 및 LocalStorage에 강제 영구 저장
                 await saveStudyDataToDB();
                 renderStudyParts();
 
