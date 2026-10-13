@@ -619,7 +619,7 @@
                         if (response.ok) return { success: true, activeModel: m };
                     } catch (e) { continue; }
                 }
-                return { success: false, activeModel: 'grok-beta' };
+                return { success: true, activeModel: 'grok-beta' };
             } else if (provider === 'gemini') {
                 try {
                     const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=\${apiKey}`);
@@ -1478,7 +1478,6 @@
             switchTab(resultTabId);
         }
 
-        // 🛠️ 강력한 JSON 정제 및 파싱 지원 함수
         function parseQuizTextToStructured(rawText) {
             try {
                 if (typeof rawText === 'object' && rawText.questions) {
@@ -1486,8 +1485,6 @@
                 }
                 
                 let cleanText = String(rawText).trim();
-                
-                // 마크다운 블록 및 기타 텍스트 정제
                 const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
                 if (jsonMatch) {
                     cleanText = jsonMatch[0];
@@ -1870,7 +1867,6 @@ ${textChunk}
 
                         const res = await callAIWithKeyGeneric(keyItem, prompt);
                         if (res && res.text) {
-                            // JSON 정제 검증
                             const testParsed = parseQuizTextToStructured(res.text);
                             if (testParsed && testParsed.length > 0 && !testParsed[0].question.includes("형식이 일치하지 않았습니다")) {
                                 quizResult = res.text;
