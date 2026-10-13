@@ -108,6 +108,28 @@
         .quiz-option-label { display: block; padding: 8px 12px; margin: 6px 0; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; cursor: pointer; font-size: 14px; }
         .quiz-option-label:hover { background: #e2e6ea; }
 
+        /* 채점 결과 전용 보기 스타일 */
+        .result-option-item {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 6px;
+            font-size: 13.5px;
+            border: 1px solid #e9ecef;
+            background: #f8f9fa;
+        }
+        .result-option-item.user-selected {
+            border: 1.5px solid #e74c3c;
+            background-color: #fdf2f2;
+            font-weight: bold;
+            color: #c0392b;
+        }
+        .result-option-item.correct-answer {
+            border: 1.5px solid #2ecc71;
+            background-color: #f2f9f4;
+            font-weight: bold;
+            color: #27ae60;
+        }
+
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
         .modal-card { background: white; width: 90%; max-width: 550px; padding: 25px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); position: relative; max-height: 85vh; overflow-y: auto; }
         .close-modal { position: absolute; top: 15px; right: 20px; background: none; border: none; font-size: 20px; color: #7f8c8d; cursor: pointer; padding: 0; }
@@ -269,12 +291,20 @@
         let openTabs = []; 
         let activeTabId = 'study-tab';
         let currentTargetPartIdForPattern = null;
+        
+        // 📌 탭별 스크롤 위치 저장 객체 (스크롤 위치 보존용)
+        let tabScrollPositions = {};
 
         window.addEventListener('DOMContentLoaded', async () => {
             await checkSession();
         });
 
+        // 🎯 탭 전환 시 스크롤 위치 보존 및 복원 함수
         function switchTab(tabId) {
+            if (activeTabId) {
+                tabScrollPositions[activeTabId] = window.scrollY || document.documentElement.scrollTop;
+            }
+
             activeTabId = tabId;
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
@@ -289,6 +319,11 @@
                 }
             });
             renderTabsHeader();
+
+            setTimeout(() => {
+                const targetScroll = tabScrollPositions[tabId] || 0;
+                window.scrollTo({ top: targetScroll, behavior: 'instant' });
+            }, 10);
         }
 
         function renderTabsHeader() {
@@ -310,6 +345,7 @@
         }
 
         function closeDynamicTab(tabId) {
+            delete tabScrollPositions[tabId];
             openTabs = openTabs.filter(t => t.id !== tabId);
             const el = document.getElementById(tabId);
             if (el) el.remove();
@@ -1354,6 +1390,7 @@ ${part.patternText.substring(0, 15000)}
             }];
         }
 
+        // 🎯 시험 제출 및 결과 화면에 문제, 예시, 1~5번 전체 보기 완벽 포함
         async function submitExam(tabId, partId, quizId) {
             const tabObj = openTabs.find(t => t.id === tabId);
             if (!tabObj) return;
@@ -1374,7 +1411,7 @@ ${part.patternText.substring(0, 15000)}
             const finalScore = Math.round(correctCount * scorePerItem * 10) / 10;
 
             let resultHtml = `
-                <div class="card" style="background: #f4f9f4; border: 1px solid #d4edda;">
+                <div class="card" style="background: #ffffff; border: 1px solid #d4edda;">
                     <h3>🎉 시험 채점 결과</h3>
                     <p style="font-size: 16px; font-weight: bold; color: #2c3e50; margin-top: 10px;">
                         총점: <span style="color: #e74c3c; font-size: 22px;">${finalScore}점</span> / 100점
@@ -1386,18 +1423,45 @@ ${part.patternText.substring(0, 15000)}
             questions.forEach((q, idx) => {
                 const uAns = userAnswers[idx];
                 const isCorrect = uAns === q.answer;
-                const userText = uAns !== -1 && q.options[uAns] ? q.options[uAns] : '미작택';
-                const correctText = q.options[q.answer] ? q.options[q.answer] : '정보 없음';
+
+                // 📦 가, 나, 다, 라 예시 박스
+                let exampleBoxHtml = "";
+                if (q.examples && Array.isArray(q.examples) && q.examples.length > 0) {
+                    exampleBoxHtml = `<div class="quiz-example-box">`;
+                    q.examples.forEach(ex => {
+                        exampleBoxHtml += `<div class="quiz-example-item">${ex}</div>`;
+                    });
+                    exampleBoxHtml += `</div>`;
+                }
+
+                // 🔢 1~5번 전체 보기 및 내 선택/정답 표시
+                let optionsHtml = `<div style="margin: 10px 0;">`;
+                q.options.forEach((opt, oIdx) => {
+                    let optionClass = "result-option-item";
+                    let badgeText = "";
+
+                    if (oIdx === q.answer && oIdx === uAns) {
+                        optionClass += " correct-answer";
+                        badgeText = " <span style='color:#27ae60;'>(⭕ 내 답 / 정답)</span>";
+                    } else if (oIdx === q.answer) {
+                        optionClass += " correct-answer";
+                        badgeText = " <span style='color:#27ae60;'>(⭕ 정답)</span>";
+                    } else if (oIdx === uAns) {
+                        optionClass += " user-selected";
+                        badgeText = " <span style='color:#c0392b;'>(❌ 내가 선택한 답)</span>";
+                    }
+
+                    optionsHtml += `<div class="${optionClass}">${oIdx + 1}. ${opt}${badgeText}</div>`;
+                });
+                optionsHtml += `</div>`;
 
                 resultHtml += `
-                    <div style="background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 12px; border: 1px solid ${isCorrect ? '#2ecc71' : '#e74c3c'};">
-                        <strong>문제 ${idx + 1}. ${q.question}</strong>
-                        <p style="margin: 8px 0 4px 0; font-size: 13px; color: ${isCorrect ? '#27ae60' : '#c0392b'}; font-weight: bold;">
-                            내 답안: ${userText} (${isCorrect ? '⭕ 정답' : '❌ 오답'})
-                        </p>
-                        <p style="margin: 0 0 8px 0; font-size: 13px; color: #2980b9;">정답: ${correctText}</p>
-                        <div style="font-size: 12px; color: #666; background: #f8f9fa; padding: 8px; border-radius: 4px; white-space: pre-wrap;">
-                            <strong>💡 해설:</strong><br>${q.explanation || '해설이 제공되지 않았습니다.'}
+                    <div style="background: #fff; padding: 18px; border-radius: 8px; margin-bottom: 15px; border: 1.5px solid ${isCorrect ? '#2ecc71' : '#e74c3c'};">
+                        <strong style="font-size:15px;">문제 ${idx + 1}. ${q.question}</strong>
+                        ${exampleBoxHtml}
+                        ${optionsHtml}
+                        <div style="font-size: 13px; color: #444; background: #f8f9fa; padding: 10px 12px; border-radius: 6px; white-space: pre-wrap; margin-top: 10px; border-left: 3px solid #3498db;">
+                            <strong>💡 정답 해설:</strong><br>${q.explanation || '해설이 제공되지 않았습니다.'}
                         </div>
                     </div>
                 `;
