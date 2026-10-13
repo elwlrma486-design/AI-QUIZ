@@ -322,6 +322,20 @@
             await checkSession();
         });
 
+        // [추가/수정] 구글 로그인 함수 명시적 정의
+        async function handleGoogleLogin() {
+            try {
+                const redirectUri = window.location.origin + window.location.pathname;
+                const { error } = await supabaseClient.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: { redirectTo: redirectUri, queryParams: { prompt: 'select_account' } }
+                });
+                if (error) throw error;
+            } catch (err) {
+                alert("로그인 오류: " + err.message);
+            }
+        }
+
         function switchTab(tabId) {
             if (activeTabId) {
                 tabScrollPositions[activeTabId] = window.scrollY || document.documentElement.scrollTop;
@@ -402,19 +416,6 @@
                 }
             } catch (err) {
                 showAuth();
-            }
-        }
-
-        async function handleGoogleLogin() {
-            try {
-                const redirectUri = window.location.origin + window.location.pathname;
-                const { error } = await supabaseClient.auth.signInWithOAuth({
-                    provider: 'google',
-                    options: { redirectTo: redirectUri, queryParams: { prompt: 'select_account' } }
-                });
-                if (error) throw error;
-            } catch (err) {
-                alert("로그인 오류: " + err.message);
             }
         }
 
