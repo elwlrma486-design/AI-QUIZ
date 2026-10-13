@@ -402,22 +402,24 @@
         async function handleLogout() {
             try {
                 await supabaseClient.auth.signOut({ scope: 'local' });
-                localStorage.clear();
+                // 🛠️ 중요: 로그아웃 시 로컬 스토리지 데이터를 지우지 않도록 수정되었습니다.
                 currentUser = null;
+                studyParts = [];
+                folders = [];
+                trashBin = [];
                 showAuth();
-                window.location.reload();
             } catch (err) {
                 console.error(err);
             }
         }
 
         async function deleteAccountData() {
-            if (!confirm("정말 계정의 모든 데이터를 삭제하시겠습니까?")) return;
+            if (!confirm("정말 계정의 모든 데이터를 삭제하시겠습니까? 데이터 삭제 시 다시 복구할 수 없습니다.")) return;
             try {
                 await supabaseClient.from('user_ai_keys').delete().eq('user_id', currentUser.id);
                 await supabaseClient.from('study_data').delete().eq('user_id', currentUser.id);
-                localStorage.clear();
-                alert("삭제되었습니다.");
+                localStorage.removeItem(`study_backup_${currentUser.id}`);
+                alert("모든 계정 데이터가 완전 삭제되었습니다.");
                 await handleLogout();
             } catch (err) {
                 alert("삭제 실패: " + err.message);
@@ -455,24 +457,26 @@
         async function loadStudyData() {
             if (!currentUser) return;
             try {
-                const localBackup = localStorage.getItem(`study_backup_${currentUser.id}`);
-                if (localBackup) {
-                    const parsed = JSON.parse(localBackup);
-                    studyParts = parsed.study_parts || [];
-                    folders = parsed.folders || [];
-                    trashBin = parsed.trash_bin || [];
-                    renderStudyParts();
-                    renderTrashBin();
-                }
-
+                // 1순위: Supabase 서버 DB에서 최신 데이터 조회
                 const { data, error } = await supabaseClient.from('study_data').select('*').eq('user_id', currentUser.id).single();
-                if (data) {
-                    studyParts = data.study_parts || studyParts;
-                    folders = data.folders || folders;
-                    trashBin = data.trash_bin || trashBin;
-                    renderStudyParts();
-                    renderTrashBin();
+                
+                if (data && data.study_parts) {
+                    studyParts = data.study_parts || [];
+                    folders = data.folders || [];
+                    trashBin = data.trash_bin || [];
+                    localStorage.setItem(`study_backup_${currentUser.id}`, JSON.stringify(data));
+                } else {
+                    // 2순위: DB 조회가 안 될 경우 로컬 스토리지 백업 데이터 로드
+                    const localBackup = localStorage.getItem(`study_backup_${currentUser.id}`);
+                    if (localBackup) {
+                        const parsed = JSON.parse(localBackup);
+                        studyParts = parsed.study_parts || [];
+                        folders = parsed.folders || [];
+                        trashBin = parsed.trash_bin || [];
+                    }
                 }
+                renderStudyParts();
+                renderTrashBin();
             } catch (err) {
                 console.error("데이터 로드 중 예외:", err);
             }
@@ -1866,8 +1870,6 @@ ${textChunk}
                 };
 
                 targetPart.quizzes.push(newQuizObj);
-                
-                // 🛡️ [핵심 수정] 퀴즈 생성이 완료된 직후 즉시 DB 및 로컬스토리지 강제 영구 저장
                 await saveStudyDataToDB();
                 renderStudyParts();
 
