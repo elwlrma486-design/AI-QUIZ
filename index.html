@@ -1336,4 +1336,462 @@ ${part.patternText.substring(0, 15000)}
                 htmlContent += `</div></div>`;
             });
 
-            html
+            htmlContent += `<button class="secondary" style="margin-top: 15px; width: 100%; padding: 12px; font-size: 16px;" onclick="submitExam('${tabId}', ${part.id}, ${quizId})">시험 완료 및 결과 보기</button>`;
+            tabContentDiv.innerHTML = htmlContent;
+            dynamicContainer.appendChild(tabContentDiv);
+
+            switchTab(tabId);
+        }
+
+        function openResultTab(partId, quizId) {
+            const part = studyParts.find(p => p.id === Number(partId));
+            if (!part) return;
+            const quiz = part.quizzes.find(q => q.id === Number(quizId));
+            if (!quiz || !quiz.resultHtml) return;
+
+            const resultTabId = `result-tab-${partId}-${quizId}`;
+            const existingTab = openTabs.find(t => t.id === resultTabId);
+            if (existingTab) {
+                switchTab(resultTabId);
+                return;
+            }
+
+            const resultTitle = `결과: ${part.name} (${quiz.count}문항)`;
+            openTabs.push({ id: resultTabId, title: resultTitle, type: 'result' });
+
+            const dynamicContainer = document.getElementById('dynamic-tabs-container');
+            const resultTabDiv = document.createElement('div');
+            resultTabDiv.id = resultTabId;
+            resultTabDiv.className = 'tab-content hidden';
+            resultTabDiv.innerHTML = quiz.resultHtml;
+            dynamicContainer.appendChild(resultTabDiv);
+
+            switchTab(resultTabId);
+        }
+
+        function parseQuizTextToStructured(rawText) {
+            try {
+                let cleanText = rawText.trim();
+                if (cleanText.startsWith('```')) {
+                    cleanText = cleanText.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/```$/, '').trim();
+                }
+                const parsed = JSON.parse(cleanText);
+                if (parsed && parsed.questions && Array.isArray(parsed.questions)) {
+                    return parsed.questions;
+                }
+            } catch (e) { console.error("JSON 파싱 에러:", e); }
+
+            return [{
+                question: "퀴즈 데이터를 불러오는 중 형식이 일치하지 않았습니다.",
+                examples: [],
+                options: ["보기 확인 불가", "보기 확인 불가", "보기 확인 불가", "보기 확인 불가", "보기 확인 불가"],
+                answer: 0,
+                explanation: rawText
+            }];
+        }
+
+        // 🎯 시험 제출 및 결과 화면에 문제, 예시, 1~5번 전체 보기 완벽 포함
+        async function submitExam(tabId, partId, quizId) {
+            const tabObj = openTabs.find(t => t.id === tabId);
+            if (!tabObj) return;
+
+            const questions = tabObj.data.parsedQuestions;
+            let correctCount = 0;
+            const userAnswers = [];
+
+            questions.forEach((q, idx) => {
+                const selected = document.querySelector(`input[name="q_${tabId}_${idx}"]:checked`);
+                const userVal = selected ? parseInt(selected.value) : -1;
+                userAnswers.push(userVal);
+                if (userVal === q.answer) correctCount++;
+            });
+
+            const totalQ = questions.length;
+            const scorePerItem = 100 / totalQ;
+            const finalScore = Math.round(correctCount * scorePerItem * 10) / 10;
+
+            let resultHtml = `
+                <div class="card" style="background: #ffffff; border: 1px solid #d4edda;">
+                    <h3>🎉 시험 채점 결과</h3>
+                    <p style="font-size: 16px; font-weight: bold; color: #2c3e50; margin-top: 10px;">
+                        총점: <span style="color: #e74c3c; font-size: 22px;">${finalScore}점</span> / 100점
+                    </p>
+                    <p style="font-size: 14px; color: #555;">정답 맞춘 문항: ${correctCount}문항 / 전체 ${totalQ}문항</p>
+                    <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+            `;
+
+            questions.forEach((q, idx) => {
+                const uAns = userAnswers[idx];
+                const isCorrect = uAns === q.answer;
+
+                let exampleBoxHtml = "";
+                if (q.examples && Array.isArray(q.examples) && q.examples.length > 0) {
+                    exampleBoxHtml = `<div class="quiz-example-box">`;
+                    q.examples.forEach(ex => {
+                        exampleBoxHtml += `<div class="quiz-example-item">${ex}</div>`;
+                    });
+                    exampleBoxHtml += `</div>`;
+                }
+
+                let optionsHtml = `<div style="margin: 10px 0;">`;
+                q.options.forEach((opt, oIdx) => {
+                    let optionClass = "result-option-item";
+                    let badgeText = "";
+
+                    if (oIdx === q.answer && oIdx === uAns) {
+                        optionClass += " correct-answer";
+                        badgeText = " <span style='color:#27ae60;'>(⭕ 내 답 / 정답)</span>";
+                    } else if (oIdx === q.answer) {
+                        optionClass += " correct-answer";
+                        badgeText = " <span style='color:#27ae60;'>(⭕ 정답)</span>";
+                    } else if (oIdx === uAns) {
+                        optionClass += " user-selected";
+                        badgeText = " <span style='color:#c0392b;'>(❌ 내가 선택한 답)</span>";
+                    }
+
+                    optionsHtml += `<div class="${optionClass}">${oIdx + 1}. ${opt}${badgeText}</div>`;
+                });
+                optionsHtml += `</div>`;
+
+                resultHtml += `
+                    <div style="background: #fff; padding: 18px; border-radius: 8px; margin-bottom: 15px; border: 1.5px solid ${isCorrect ? '#2ecc71' : '#e74c3c'};">
+                        <strong style="font-size:15px;">문제 ${idx + 1}. ${q.question}</strong>
+                        ${exampleBoxHtml}
+                        ${optionsHtml}
+                        <div style="font-size: 13px; color: #444; background: #f8f9fa; padding: 10px 12px; border-radius: 6px; white-space: pre-wrap; margin-top: 10px; border-left: 3px solid #3498db;">
+                            <strong>💡 정답 해설:</strong><br>${q.explanation || '해설이 제공되지 않았습니다.'}
+                        </div>
+                    </div>
+                `;
+            });
+
+            resultHtml += `</div>`;
+
+            const part = studyParts.find(p => p.id === partId);
+            if (part) {
+                const quiz = part.quizzes.find(q => q.id === quizId);
+                if (quiz) {
+                    quiz.hasCompleted = true;
+                    quiz.resultHtml = resultHtml;
+                    await saveStudyDataToDB();
+                }
+            }
+            renderStudyParts();
+            closeDynamicTab(tabId);
+
+            const resultTabId = `result-tab-${partId}-${quizId}`;
+            const existingResultTab = openTabs.find(t => t.id === resultTabId);
+            if (existingResultTab) closeDynamicTab(resultTabId);
+
+            openTabs.push({ id: resultTabId, title: `결과: ${tabObj.title.replace('시험: ', '')}`, type: 'result' });
+
+            const dynamicContainer = document.getElementById('dynamic-tabs-container');
+            const resultTabDiv = document.createElement('div');
+            resultTabDiv.id = resultTabId;
+            resultTabDiv.className = 'tab-content hidden';
+            resultTabDiv.innerHTML = resultHtml;
+            dynamicContainer.appendChild(resultTabDiv);
+
+            switchTab(resultTabId);
+            alert(`✅ 채점이 완료되었습니다! 총점: ${finalScore}점`);
+        }
+
+        function editPartName(partId) {
+            const part = studyParts.find(p => p.id === partId);
+            if (!part) return;
+            const newName = prompt("변경할 이름을 입력하세요:", part.name);
+            if (newName && newName.trim()) {
+                part.name = newName.trim();
+                saveStudyDataToDB();
+                renderStudyParts();
+            }
+        }
+
+        async function deletePart(partId) {
+            const idx = studyParts.findIndex(p => p.id === partId);
+            if (idx > -1) {
+                const removed = studyParts.splice(idx, 1)[0];
+                folders.forEach(f => {
+                    f.partIds = f.partIds.filter(id => id !== partId);
+                });
+
+                removed.quizzes.forEach(q => {
+                    closeDynamicTab(`exam-tab-${partId}-${q.id}`);
+                    closeDynamicTab(`result-tab-${partId}-${q.id}`);
+                });
+                trashBin.push({ item: removed, type: 'part', deletedAt: new Date() });
+                await saveStudyDataToDB();
+                renderStudyParts();
+                renderTrashBin();
+            }
+        }
+
+        async function deleteQuiz(partId, quizId) {
+            const part = studyParts.find(p => p.id === partId);
+            if (part) {
+                const qIdx = part.quizzes.findIndex(q => q.id === quizId);
+                if (qIdx > -1) {
+                    const removedQuiz = part.quizzes.splice(qIdx, 1)[0];
+                    closeDynamicTab(`exam-tab-${partId}-${quizId}`);
+                    closeDynamicTab(`result-tab-${partId}-${quizId}`);
+                    trashBin.push({ item: removedQuiz, type: 'quiz', partId: partId, deletedAt: new Date() });
+                    await saveStudyDataToDB();
+                    renderStudyParts();
+                    renderTrashBin();
+                }
+            }
+        }
+
+        async function restoreFromTrash(index) {
+            const restoredEntry = trashBin.splice(index, 1)[0];
+            if (!restoredEntry) return;
+
+            if (restoredEntry.type === 'part') {
+                if (studyParts.length >= 10) {
+                    alert("⚠️ 학습 파트는 최대 10개까지만 유지할 수 있습니다.");
+                    trashBin.splice(index, 0, restoredEntry);
+                    return;
+                }
+                studyParts.push(restoredEntry.item);
+            } else if (restoredEntry.type === 'quiz') {
+                const targetPart = studyParts.find(p => p.id === restoredEntry.partId);
+                if (targetPart) targetPart.quizzes.push(restoredEntry.item);
+            }
+
+            await saveStudyDataToDB();
+            renderStudyParts();
+            renderTrashBin();
+        }
+
+        async function renderTrashBin() {
+            const container = document.getElementById('trash-container');
+            container.innerHTML = '';
+            const now = new Date();
+            trashBin = trashBin.filter(t => (now - new Date(t.deletedAt)) / (1000 * 60 * 60 * 24) < 7);
+
+            if (trashBin.length === 0) {
+                container.innerHTML = '<p style="font-size: 12px; color: #888; margin: 0;">휴지통이 비어 있습니다.</p>';
+                return;
+            }
+
+            trashBin.forEach((t, idx) => {
+                const div = document.createElement('div');
+                div.className = 'trash-item';
+                div.innerHTML = `
+                    <span>${t.type === 'part' ? `[상위] ${t.item.name}` : `[하위 퀴즈] (${t.item.count}문항)`}</span>
+                    <div style="display: flex; gap: 4px;">
+                        <button class="secondary" style="padding: 2px 6px; font-size: 10px;" onclick="restoreFromTrash(${idx})">복구</button>
+                        <button class="danger" style="padding: 2px 6px; font-size: 10px;" onclick="permanentlyDelete(${idx})">삭제</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        async function permanentlyDelete(index) {
+            trashBin.splice(index, 1);
+            await saveStudyDataToDB();
+            renderTrashBin();
+        }
+
+        function startTimerProgress(quizCount) {
+            const wrapper = document.getElementById('quiz-loading-wrapper');
+            const fill = document.getElementById('progress-bar-fill');
+            const percentText = document.getElementById('progress-percent-text');
+            const statusTextEl = document.getElementById('progress-status-text');
+
+            if (progressInterval) clearInterval(progressInterval);
+            wrapper.classList.remove('hidden');
+            
+            const totalEstimatedSeconds = Math.max(10, Math.round(8 + (parseInt(quizCount) * 0.4)));
+            let elapsedSeconds = 0;
+
+            fill.style.width = '5%';
+            percentText.textContent = `5% (남은 시간: 약 ${totalEstimatedSeconds}초)`;
+            statusTextEl.textContent = `🤖 전범위 균등 추출 및 고난도 유형 포함 퀴즈 생성 중...`;
+
+            progressInterval = setInterval(() => {
+                elapsedSeconds++;
+                const remainingSeconds = Math.max(1, totalEstimatedSeconds - elapsedSeconds);
+                const percent = Math.min(95, Math.round((elapsedSeconds / totalEstimatedSeconds) * 90) + 5);
+                fill.style.width = percent + '%';
+                percentText.textContent = `${percent}% (남은 시간: 약 ${remainingSeconds}초)`;
+            }, 1000);
+        }
+
+        function finishTimerProgress() {
+            if (progressInterval) clearInterval(progressInterval);
+            const fill = document.getElementById('progress-bar-fill');
+            const percentText = document.getElementById('progress-percent-text');
+            const wrapper = document.getElementById('quiz-loading-wrapper');
+            fill.style.width = '100%';
+            percentText.textContent = '100% (완료!)';
+            setTimeout(() => { wrapper.classList.add('hidden'); }, 800);
+        }
+
+        async function generateQuizFromLearnedData() {
+            const targetPartId = parseInt(document.getElementById('target-part-select').value);
+            const quizType = document.getElementById('quiz-type-select').value;
+            const quizCount = document.getElementById('quiz-count-select').value;
+            const wrapper = document.getElementById('quiz-loading-wrapper');
+
+            if (!targetPartId) {
+                alert("적용할 학습 파트를 선택해 주세요.");
+                return;
+            }
+
+            const targetPart = studyParts.find(p => p.id === targetPartId);
+            if (!targetPart || !targetPart.text) {
+                alert("선택한 학습 파트의 데이터가 존재하지 않습니다.");
+                return;
+            }
+
+            const { data: keys, error } = await supabaseClient
+                .from('user_ai_keys').select('*').eq('user_id', currentUser.id).order('priority', { ascending: true });
+
+            if (error || !keys || keys.length === 0) {
+                alert("등록된 유효한 API 키가 없습니다. 우측 상단의 [⚙️ AI API 설정]에서 키를 먼저 등록해주세요.");
+                return;
+            }
+
+            startTimerProgress(quizCount);
+            let lastErrorMessage = "";
+
+            try {
+                let quizResult = null;
+                let usedKeyInfo = null;
+                let matchedModelName = "";
+
+                // 🎯 전체 문서 텍스트를 고루 활용하도록 샘플링 구간 조정 (너무 길 경우 여러 지점에서 골고루 발췌)
+                let textChunk = targetPart.text;
+                if (textChunk.length > 25000) {
+                    textChunk = textChunk.substring(0, 25000); // 넉넉하게 앞뒤 및 전체 맥락 포함
+                }
+
+                let previousQuestionsList = [];
+                if (targetPart.quizzes && targetPart.quizzes.length > 0) {
+                    targetPart.quizzes.forEach(q => {
+                        const parsed = parseQuizTextToStructured(q.result);
+                        parsed.forEach(item => {
+                            if (item.question) previousQuestionsList.push(item.question.substring(0, 30));
+                        });
+                    });
+                }
+                const previousQuestionsContext = previousQuestionsList.length > 0 
+                    ? `[⚠️ 중복 출제 절대 금지 목록]\n다음은 이전에 출제했던 문제들의 지문입니다. 이번에는 아래 문제들과 주제나 내용이 겹치지 않는 완전히 새로운 영역에서 문제를 출제하세요:\n- ${previousQuestionsList.join('\n- ')}`
+                    : '';
+
+                for (let i = 0; i < keys.length; i++) {
+                    const keyItem = keys[i];
+                    if (exhaustedKeysCache[keyItem.id]) continue;
+
+                    try {
+                        let patternGuideline = "";
+                        if (targetPart.isAnalyzed && targetPart.analysisResult) {
+                            patternGuideline = `
+[⭐ 출제 형식/스타일 참고 가이드라인]
+다음 분석 가이드라인은 오직 '문제 지문 형태(가,나,다,라 보기형 등)', '함정 구성 방식', '난이도' 등의 **출제 패턴/형식**에만 적용하세요:
+${targetPart.analysisResult}
+                            `;
+                        }
+
+                        // 🛠️ 대폭 강화된 고품질 전문 프롬프트 (목차 차단, 계산/비교/응용 유형 강제, 전범위 균등 분배)
+                        const prompt = `
+당신은 최고급 의학·방사선 및 PACS 전공 국가고시 출제 위원입니다. 제공된 학습용 PDF 문서 텍스트들을 바탕으로 ${quizType === 'multiple' ? '고급 5지선다 객관식' : quizType === 'ox' ? 'O/X' : '주관식'} 퀴즈 ${quizCount}문항을 생성해 주세요.
+
+[🚨 절대 금지 필터 규칙 (메타 및 행정 정보 배제)]
+1. "몇 장인가요?", "어떤 단원 차시인가요?", "목차상 어디에 속하나요?" 같은 **교재 구조, 목차, 주차별 순서, 강의 일정에 대한 질문은 100% 절대 출제하지 마세요.**
+2. 담당 교수 성함, 교원, 학교 행정 정보 등도 절대 출제 금지합니다.
+3. 오직 **순수 학술적, 기술적, 임상 전공 지식**만 다루세요.
+
+[🎯 필수 출제 유형 다양화 (매우 중요)]
+이번 퀴즈에서는 단순 암기형 외에 다음과 같은 다양한 형식을 골고루 포함하세요:
+1. **계산 및 수치형 문제**: 문서 내에 등장하는 수치, 해상도, 매트릭스(Matrix) 크기, 비트(Bit) 수, 압축률, 저장 용량 산출 등 계산이나 수치 비교가 필요한 문제를 포함하세요.
+2. **비교 및 대조형 문제**: 두 가지 기술이나 시스템(예: CR과 DR의 특성 차이 등)의 장단점이나 차이점을 비교하는 문제를 포함하세요.
+3. **임상 응용 및 사례형 문제**: 실제 현장이나 시스템 에러, 영상 처리 과정에서 발생할 수 있는 상황을 주고 올바른 대처나 원인을 고르는 문제를 포함하세요.
+
+[📄 다중 파일 전범위 균등 분배 규칙]
+- 업로드된 여러 개의 파일 및 문서 전체 구간(앞부분, 중간, 뒷부분)에서 **편중 없이 골고루** 핵심 주제를 발췌하여 문제를 만드세요. 특정 파일이나 파트에만 문제가 몰리면 안 됩니다.
+
+${previousQuestionsContext}
+
+[출제 지침 및 보기 작성]
+1. 지문 내에서 '보기(가, 나, 다, 라)' 또는 복합 조건이 필요한 경우 반드시 **'examples' 배열**에 각각 따로 분리해서 담아주세요.
+2. 5지선다의 경우 헷갈리기 쉬운 매력적인 오답(Distractor)을 구성하세요.
+
+${patternGuideline}
+
+반드시 마크다운 없이 아래 순수 JSON 형식으로만 응답하세요:
+
+{
+  "questions": [
+    {
+      "question": "핵심 전공 개념, 계산, 또는 임상 상황을 묻는 명확한 문제 지문",
+      "examples": ["가. 보기 조건 1", "나. 보기 조건 2", "다. 보기 조건 3", "라. 보기 조건 4"],
+      "options": ["보기 1", "보기 2", "보기 3", "보기 4", "보기 5"],
+      "answer": 0,
+      "explanation": "정답 산출 근거 및 상세한 학술적 해설"
+    }
+  ]
+}
+
+주의사항:
+- 가, 나, 다, 라 예시 조건이 필요 없는 일반 문항은 'examples' 배열을 빈 배열 []로 두세요.
+- 'answer'는 정답 인덱스 번호(0~4)입니다.
+- 문항 수: 정확히 ${quizCount}문항.
+
+[학습 문서 전체 내용 (전범위 균등 추출 대상)]
+${textChunk}
+                        `;
+
+                        const res = await callAIWithKeyGeneric(keyItem, prompt);
+                        if (res && res.text) {
+                            quizResult = res.text;
+                            matchedModelName = res.modelName;
+                            usedKeyInfo = keyItem;
+                            break;
+                        }
+                    } catch (err) {
+                        lastErrorMessage = err.message;
+                        if (err.message.includes("no credits remaining") || err.message.includes("RESOURCE_EXHAUSTED") || err.message.includes("insufficient_quota") || err.message.includes("credit")) {
+                            exhaustedKeysCache[keyItem.id] = true;
+                        }
+                    }
+                }
+
+                finishTimerProgress();
+
+                if (!quizResult) {
+                    alert(`❌ 퀴즈 생성 실패\n원인: ${lastErrorMessage || "모든 키와 모델이 소진되었습니다."}`);
+                    loadApiKeys();
+                    return;
+                }
+
+                activeModelNames[usedKeyInfo.id] = matchedModelName;
+                loadApiKeys();
+
+                const newQuizId = Date.now();
+                const newQuizObj = {
+                    id: newQuizId,
+                    count: quizCount,
+                    type: quizType,
+                    result: quizResult,
+                    hasCompleted: false,
+                    resultHtml: null
+                };
+
+                targetPart.quizzes.push(newQuizObj);
+                await saveStudyDataToDB();
+                renderStudyParts();
+
+                openExamTab(targetPart.id, newQuizId);
+
+            } catch (err) {
+                if (progressInterval) clearInterval(progressInterval);
+                wrapper.classList.add('hidden');
+                alert("퀴즈 생성 중 오류가 발생했습니다: " + err.message);
+            }
+        }
+    </script>
+</body>
+</html>
