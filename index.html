@@ -322,8 +322,8 @@
             await checkSession();
         });
 
-        // [추가/수정] 구글 로그인 함수 명시적 정의
-        async function handleGoogleLogin() {
+        // 전역 범위에 로그인 함수 명시적 등록
+        window.handleGoogleLogin = async function handleGoogleLogin() {
             try {
                 const redirectUri = window.location.origin + window.location.pathname;
                 const { error } = await supabaseClient.auth.signInWithOAuth({
@@ -334,7 +334,7 @@
             } catch (err) {
                 alert("로그인 오류: " + err.message);
             }
-        }
+        };
 
         function switchTab(tabId) {
             if (activeTabId) {
