@@ -190,8 +190,11 @@
             <h3>📁 생성된 학습파일 및 폴더 관리</h3>
             <p style="font-size: 13px; color: #666;">최상위 폴더를 만들거나 하위 폴더를 추가하여 체계적으로 관리할 수 있습니다.</p>
             
-            <div style="margin: 15px 0; display: flex; gap: 10px;">
+            <div style="margin: 15px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                 <button class="secondary" onclick="createNewFolder(null)">📁 최상위 새 폴더 만들기</button>
+                <div style="font-size: 12.5px; color: #555; font-weight: 500; background: #f1f2f6; padding: 6px 12px; border-radius: 6px; border: 1px solid #e1e4ed;">
+                    💡 패턴 업로드 및 분석 시 퀴즈 생성 속도가 훨씬 빨라져요!
+                </div>
             </div>
 
             <div id="folders-container" style="margin-top: 15px;"></div>
@@ -459,7 +462,6 @@
             if (!currentUser) return;
             try {
                 let hasLoaded = false;
-                // 1순위: Supabase 서버 DB에서 최신 데이터 조회
                 const { data, error } = await supabaseClient.from('study_data').select('*').eq('user_id', currentUser.id).single();
                 
                 if (data && data.study_parts) {
@@ -470,7 +472,6 @@
                     hasLoaded = true;
                 }
 
-                // 2순위: DB에 데이터가 없거나 조회 실패 시 로컬 스토리지 백업 데이터 로드
                 if (!hasLoaded) {
                     const localBackup = localStorage.getItem(`study_backup_${currentUser.id}`);
                     if (localBackup) {
@@ -938,7 +939,6 @@
                 };
 
                 studyParts.push(newPart);
-                // 🛠️ PDF 학습 완료 직후 즉시 DB 저장 수행
                 await saveStudyDataToDB();
                 renderStudyParts();
                 
@@ -1780,7 +1780,7 @@ ${part.patternText.substring(0, 15000)}
 
                     try {
                         let patternGuideline = "";
-                        // 🛠️ 패턴 분석을 하지 않았어도 오류 없이 정상 동작하도록 수정됨
+                        // 🛠️ 패턴 분석 여부에 따라 가이드라인을 안전하게 설정하도록 수정됨
                         if (targetPart.isAnalyzed && targetPart.analysisResult) {
                             patternGuideline = `
 [⭐ 출제 형식/스타일 참고 가이드라인]
