@@ -203,6 +203,7 @@
             <label>퀴즈 유형 설정</label>
             <select id="quiz-type-select">
                 <option value="multiple">객관식 퀴즈 (5지 선다)</option>
+                <option value="diagram" selected>🖼️ 도해/그림 분석형 (구조 및 명칭 빈칸 맞추기)</option>
                 <option value="ox">O/X 퀴즈</option>
                 <option value="short">주관식/단답형 퀴즈</option>
             </select>
@@ -816,7 +817,7 @@
 
             try {
                 let combinedText = "";
-                let firstFileName = fileInput.files[0].name.replace(/\.[^/.]+$/, "");
+                let firstFileName = fileInput.files[0].name.replace(/\.[^/.]+\$/, "");
 
                 for (let i = 0; i < fileInput.files.length; i++) {
                     const file = fileInput.files[i];
@@ -828,7 +829,8 @@
                         const textContent = await page.getTextContent();
                         let pageText = textContent.items.map(item => item.str).join(" ");
 
-                        if (pageText.trim().length < 30) {
+                        // 🖼️ 텍스트가 부족하거나 그림/도해 페이지인 경우 OCR을 통해 도해 속 명칭(세포소기관, 신체부위 등)까지 철저히 추출
+                        if (pageText.trim().length < 50) {
                             const viewport = page.getViewport({ scale: 1.5 });
                             const canvas = document.createElement('canvas');
                             const context = canvas.getContext('2d');
@@ -838,7 +840,7 @@
                             await page.render({ canvasContext: context, viewport: viewport }).promise;
                             const imageURL = canvas.toDataURL('image/png');
                             const { data: { text } } = await Tesseract.recognize(imageURL, 'eng+kor');
-                            pageText = text;
+                            pageText = "[도해/그림 OCR 인식 영역]\n" + text;
                         }
 
                         combinedText += `--- [File: ${file.name} Page ${p}] ---\n` + pageText + "\n\n";
@@ -1217,10 +1219,11 @@ ${part.patternText.substring(0, 15000)}
                 subQuizzesHtml = '<div style="font-size: 12px; color: #aaa; margin-left: 20px;">생성된 하위 퀴즈가 없습니다.</div>';
             } else {
                 part.quizzes.forEach((quiz, qIdx) => {
+                    let typeLabel = quiz.type === 'multiple' ? '5지선다' : quiz.type === 'diagram' ? '도해분석' : quiz.type === 'ox' ? 'O/X' : '주관식';
                     let resultBtnHtml = (quiz.hasCompleted && quiz.resultHtml) ? `<button class="result-btn" onclick="event.stopPropagation(); openResultTab('${part.id}', '${quiz.id}')">📊 결과</button>` : '';
                     subQuizzesHtml += `
                         <div class="sub-quiz-item" onclick="openExamTab(${part.id}, ${quiz.id})">
-                            <span style="flex-grow:1;">📄 ${qIdx + 1}번 퀴즈 - ${quiz.count}문항 (${quiz.type === 'multiple' ? '5지선다' : quiz.type === 'ox' ? 'O/X' : '주관식'}) [응시하기] ${resultBtnHtml}</span>
+                            <span style="flex-grow:1;">📄 ${qIdx + 1}번 퀴즈 - ${quiz.count}문항 (${typeLabel}) [응시하기] ${resultBtnHtml}</span>
                             <button class="danger" style="padding: 2px 6px; font-size: 10px;" onclick="event.stopPropagation(); deleteQuiz(${part.id}, ${quiz.id})">삭제</button>
                         </div>
                     `;
@@ -1373,7 +1376,7 @@ ${part.patternText.substring(0, 15000)}
             try {
                 let cleanText = rawText.trim();
                 if (cleanText.startsWith('```')) {
-                    cleanText = cleanText.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/```$/, '').trim();
+                    cleanText = cleanText.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/```\$/, '').trim();
                 }
                 const parsed = JSON.parse(cleanText);
                 if (parsed && parsed.questions && Array.isArray(parsed.questions)) {
@@ -1578,7 +1581,7 @@ ${part.patternText.substring(0, 15000)}
                 const div = document.createElement('div');
                 div.className = 'trash-item';
                 div.innerHTML = `
-                    <span>${t.type === 'part' ? `[상위] ${t.item.name}` : `[하위 퀴즈] (${t.item.count}문항)`}</span>
+                    <span>${t.type === 'part' ? `[상위] \${t.item.name}` : `[하위 퀴즈] (\${t.item.count}문항)`}</span>
                     <div style="display: flex; gap: 4px;">
                         <button class="secondary" style="padding: 2px 6px; font-size: 10px;" onclick="restoreFromTrash(${idx})">복구</button>
                         <button class="danger" style="padding: 2px 6px; font-size: 10px;" onclick="permanentlyDelete(${idx})">삭제</button>
@@ -1608,7 +1611,7 @@ ${part.patternText.substring(0, 15000)}
 
             fill.style.width = '5%';
             percentText.textContent = `5% (남은 시간: 약 ${totalEstimatedSeconds}초)`;
-            statusTextEl.textContent = `🤖 전범위 균등 추출 및 고난도 유형 포함 퀴즈 생성 중...`;
+            statusTextEl.textContent = `🤖 도해 분석 및 맞춤형 문제 생성 중...`;
 
             progressInterval = setInterval(() => {
                 elapsedSeconds++;
@@ -1662,10 +1665,9 @@ ${part.patternText.substring(0, 15000)}
                 let usedKeyInfo = null;
                 let matchedModelName = "";
 
-                // 🎯 전체 문서 텍스트를 고루 활용하도록 샘플링 구간 조정 (너무 길 경우 여러 지점에서 골고루 발췌)
                 let textChunk = targetPart.text;
                 if (textChunk.length > 25000) {
-                    textChunk = textChunk.substring(0, 25000); // 넉넉하게 앞뒤 및 전체 맥락 포함
+                    textChunk = textChunk.substring(0, 25000);
                 }
 
                 let previousQuestionsList = [];
@@ -1690,34 +1692,40 @@ ${part.patternText.substring(0, 15000)}
                         if (targetPart.isAnalyzed && targetPart.analysisResult) {
                             patternGuideline = `
 [⭐ 출제 형식/스타일 참고 가이드라인]
-다음 분석 가이드라인은 오직 '문제 지문 형태(가,나,다,라 보기형 등)', '함정 구성 방식', '난이도' 등의 **출제 패턴/형식**에만 적용하세요:
 ${targetPart.analysisResult}
                             `;
                         }
 
-                        // 🛠️ 대폭 강화된 고품질 전문 프롬프트 (목차 차단, 계산/비교/응용 유형 강제, 전범위 균등 분배)
+                        // 🖼️ [도해/그림 분석형] 선택 시 전용 프롬프트 분기 처리 (세포소기관, 신체부위 단계 등 명칭 및 빈칸 추론)
+                        let typeSpecificInstruction = "";
+                        if (quizType === 'diagram') {
+                            typeSpecificInstruction = `
+[🎯 [도해/그림 분석형] 특별 출제 지침]
+- 문서 내에 포함된 그림/도해(예: [그림 1-1] 인체의 구조적 단계, [그림 1-14] 세포소기관 등)의 OCR 인식 내용과 설명 내용을 적극 활용하세요.
+- 그림 속 화살표가 가리키는 **신체 부위, 세포소기관 명칭, 단계별 순서(화학적 단계 -> 세포 단계 -> 조직 단계 등)**를 맞추거나 빈칸을 채우는 형태의 도해 문제를 출제하세요.
+- 문제 예시(examples)나 지문에 그림의 명칭과 구조물 특징을 상세히 묘사하여, 실제 그림을 보며 학습하는 듯한 고품질 도해/구조 문제를 만드세요.
+                            `;
+                        } else if (quizType === 'multiple') {
+                            typeSpecificInstruction = `
+[🎯 [고급 5지선다 객관식] 출제 지침]
+- 계산 및 수치형, 비교 대조형, 임상 응용형 문제를 골고루 포함하세요. 교재 목차나 행정적 질문은 절대 금지합니다.
+                            `;
+                        }
+
                         const prompt = `
-당신은 최고급 의학·방사선 및 PACS 전공 국가고시 출제 위원입니다. 제공된 학습용 PDF 문서 텍스트들을 바탕으로 ${quizType === 'multiple' ? '고급 5지선다 객관식' : quizType === 'ox' ? 'O/X' : '주관식'} 퀴즈 ${quizCount}문항을 생성해 주세요.
+당신은 최고급 의학·방사선 및 PACS 전공 국가고시 출제 위원입니다. 제공된 학습용 PDF 문서 텍스트들을 바탕으로 퀴즈 ${quizCount}문항을 생성해 주세요.
 
 [🚨 절대 금지 필터 규칙 (메타 및 행정 정보 배제)]
-1. "몇 장인가요?", "어떤 단원 차시인가요?", "목차상 어디에 속하나요?" 같은 **교재 구조, 목차, 주차별 순서, 강의 일정에 대한 질문은 100% 절대 출제하지 마세요.**
-2. 담당 교수 성함, 교원, 학교 행정 정보 등도 절대 출제 금지합니다.
-3. 오직 **순수 학술적, 기술적, 임상 전공 지식**만 다루세요.
+1. "몇 장인가요?", "어떤 단원 차시인가요?" 같은 **교재 구조, 목차, 주차별 순서에 대한 질문은 100% 절대 출제하지 마세요.**
+2. 담당 교수 성함, 학교 행정 정보 등도 절대 출제 금지합니다.
 
-[🎯 필수 출제 유형 다양화 (매우 중요)]
-이번 퀴즈에서는 단순 암기형 외에 다음과 같은 다양한 형식을 골고루 포함하세요:
-1. **계산 및 수치형 문제**: 문서 내에 등장하는 수치, 해상도, 매트릭스(Matrix) 크기, 비트(Bit) 수, 압축률, 저장 용량 산출 등 계산이나 수치 비교가 필요한 문제를 포함하세요.
-2. **비교 및 대조형 문제**: 두 가지 기술이나 시스템(예: CR과 DR의 특성 차이 등)의 장단점이나 차이점을 비교하는 문제를 포함하세요.
-3. **임상 응용 및 사례형 문제**: 실제 현장이나 시스템 에러, 영상 처리 과정에서 발생할 수 있는 상황을 주고 올바른 대처나 원인을 고르는 문제를 포함하세요.
-
-[📄 다중 파일 전범위 균등 분배 규칙]
-- 업로드된 여러 개의 파일 및 문서 전체 구간(앞부분, 중간, 뒷부분)에서 **편중 없이 골고루** 핵심 주제를 발췌하여 문제를 만드세요. 특정 파일이나 파트에만 문제가 몰리면 안 됩니다.
+${typeSpecificInstruction}
 
 ${previousQuestionsContext}
 
 [출제 지침 및 보기 작성]
 1. 지문 내에서 '보기(가, 나, 다, 라)' 또는 복합 조건이 필요한 경우 반드시 **'examples' 배열**에 각각 따로 분리해서 담아주세요.
-2. 5지선다의 경우 헷갈리기 쉬운 매력적인 오답(Distractor)을 구성하세요.
+2. 헷갈리기 쉬운 매력적인 오답(Distractor)을 구성하세요.
 
 ${patternGuideline}
 
@@ -1726,7 +1734,7 @@ ${patternGuideline}
 {
   "questions": [
     {
-      "question": "핵심 전공 개념, 계산, 또는 임상 상황을 묻는 명확한 문제 지문",
+      "question": "핵심 전공 개념, 도해 구조, 또는 계산을 묻는 명확한 문제 지문",
       "examples": ["가. 보기 조건 1", "나. 보기 조건 2", "다. 보기 조건 3", "라. 보기 조건 4"],
       "options": ["보기 1", "보기 2", "보기 3", "보기 4", "보기 5"],
       "answer": 0,
@@ -1740,7 +1748,7 @@ ${patternGuideline}
 - 'answer'는 정답 인덱스 번호(0~4)입니다.
 - 문항 수: 정확히 ${quizCount}문항.
 
-[학습 문서 전체 내용 (전범위 균등 추출 대상)]
+[학습 문서 전체 내용]
 ${textChunk}
                         `;
 
