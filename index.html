@@ -1544,10 +1544,9 @@ ${part.patternText.substring(0, 15000)}
                         badgeText = " <span style='color:#c0392b;'>(❌ 내가 선택한 답)</span>";
                     }
 
-                    // 💡 개별 보기 해설 (오답 및 정답 모두 포함) 표시 추가
                     let optionExplanation = "";
                     if (q.explanations && q.explanations[oIdx]) {
-                        optionExplanation = `<div style="font-size: 12px; color: #666; margin-top: 4px; padding-left: 12px; border-left: 2px solid #ccc;">💡 <strong>${oIdx + 1번} 보기 해설:</strong> ${q.explanations[oIdx]}</div>`;
+                        optionExplanation = `<div style="font-size: 12px; color: #666; margin-top: 4px; padding-left: 12px; border-left: 2px solid #ccc;">💡 <strong>${oIdx + 1}번 보기 해설:</strong> ${q.explanations[oIdx]}</div>`;
                     }
 
                     optionsHtml += `<div class="${optionClass}">${oIdx + 1}. ${opt}${badgeText}${optionExplanation}</div>`;
@@ -1835,11 +1834,11 @@ ${patternGuideline}
       "options": ["보기 1", "보기 2", "보기 3", "보기 4", "보기 5"],
       "answer": 0,
       "explanations": [
-        "1번 보기(녹말 등)가 틀린 이유 또는 개념 설명",
-        "2번 보기 설명",
-        "3번 보기(정답)가 맞은 이유 설명",
-        "4번 보기 설명",
-        "5번 보기 설명"
+        "1번 보기에 대한 상세한 해설",
+        "2번 보기에 대한 상세한 해설",
+        "3번 보기에 대한 상세한 해설",
+        "4번 보기에 대한 상세한 해설",
+        "5번 보기에 대한 상세한 해설"
       ],
       "explanation": "문제 전체에 대한 종합적인 정답 산출 근거 및 핵심 학술적 해설"
     }
