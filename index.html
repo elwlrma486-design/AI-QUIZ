@@ -303,6 +303,19 @@
         let tabScrollPositions = {};
 
         window.addEventListener('DOMContentLoaded', async () => {
+            // 인증 상태 변화 감지 리스너 추가 (세션 갱신 및 데이터 유실 방지 강화)
+            supabaseClient.auth.onAuthStateChange(async (event, session) => {
+                if (session) {
+                    currentUser = session.user;
+                    showDashboard();
+                    await loadStudyData();
+                    loadApiKeys();
+                } else {
+                    currentUser = null;
+                    showAuth();
+                }
+            });
+
             await checkSession();
         });
 
@@ -462,6 +475,8 @@
             if (!currentUser) return;
             try {
                 let hasLoaded = false;
+                
+                // 💡 [핵심 수정] 로컬 저장소보다 Supabase DB를 항상 최우선으로 조회하여 데이터 동기화 보장
                 const { data, error } = await supabaseClient.from('study_data').select('*').eq('user_id', currentUser.id).single();
                 
                 if (data && data.study_parts) {
@@ -479,6 +494,8 @@
                         studyParts = parsed.study_parts || [];
                         folders = parsed.folders || [];
                         trashBin = parsed.trash_bin || [];
+                        // 로컬에 있던 백업 데이터를 다시 Supabase로 업로드하여 동기화
+                        await saveStudyDataToDB();
                     }
                 }
 
