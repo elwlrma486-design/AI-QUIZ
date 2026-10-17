@@ -137,7 +137,7 @@
 
     <div id="auth-section" class="card">
         <h1>AI 퀴즈 서비스 로그인</h1>
-        <p>Google 계정으로 로그인하여 나만의 AI API 키를 관리하고 맞춤형 퀴즈를 생성하세요.</p>
+        <p>Google 계정으로 로그인하여 나만의 AI API 키를 관리하고 맞춤형 퀴즈를 생성하세요[cite: 3].</p>
         <button onclick="handleGoogleLogin()">구글 계정으로 로그인</button>
     </div>
 
@@ -167,7 +167,7 @@
 
         <div id="study-tab" class="tab-content">
             <h3>📄 PDF 업로드 및 학습</h3>
-            <p style="font-size: 13px; color: #666;">최대 3개까지 PDF 파일을 업로드하여 학습할 수 있습니다.</p>
+            <p style="font-size: 13px; color: #666;">최대 3개까지 PDF 파일을 업로드하여 학습할 수 있습니다[cite: 3].</p>
 
             <label>PDF 파일 선택 (최대 3개)</label>
             <input type="file" id="pdf-file-input" accept="application/pdf" multiple onchange="handleFileSelection(event)">
@@ -188,12 +188,12 @@
 
         <div id="files-tab" class="tab-content hidden">
             <h3>📁 생성된 학습파일 및 폴더 관리</h3>
-            <p style="font-size: 13px; color: #666;">최상위 폴더를 만들거나 하위 폴더를 추가하여 체계적으로 관리할 수 있습니다.</p>
+            <p style="font-size: 13px; color: #666;">최상위 폴더를 만들거나 하위 폴더를 추가하여 체계적으로 관리할 수 있습니다[cite: 3].</p>
             
             <div style="margin: 15px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                 <button class="secondary" onclick="createNewFolder(null)">📁 최상위 새 폴더 만들기</button>
                 <div style="font-size: 12.5px; color: #555; font-weight: 500; background: #f1f2f6; padding: 6px 12px; border-radius: 6px; border: 1px solid #e1e4ed;">
-                    💡 패턴 업로드 및 분석 시 퀴즈 생성 속도가 훨씬 빨라져요!
+                    💡 패턴 업로드 및 분석 시 퀴즈 생성 속도가 훨씬 빨라져요![cite: 3]
                 </div>
             </div>
 
@@ -224,6 +224,8 @@
                 <option value="20">20문항</option>
                 <option value="30">30문항</option>
                 <option value="40">40문항</option>
+                <option value="50">50문항</option>
+                <option value="100">100문항 (전 영역 골고루 심층 출제)</option>
             </select>
 
             <button onclick="generateQuizFromLearnedData()">AI 퀴즈 생성하기</button>
@@ -251,7 +253,7 @@
         <div class="modal-card">
             <button class="close-modal" onclick="closeSettingsModal()">&times;</button>
             <h3>🔑 AI API 키 관리 및 상태</h3>
-            <p style="font-size: 13px; color: #666;">등록된 키는 잔액 소진 시 자동으로 다음 순위 키로 전환됩니다.</p>
+            <p style="font-size: 13px; color: #666;">등록된 키는 잔액 소진 시 자동으로 다음 순위 키로 전환됩니다[cite: 3].</p>
             
             <div style="margin-top: 15px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -303,7 +305,6 @@
         let tabScrollPositions = {};
 
         window.addEventListener('DOMContentLoaded', async () => {
-            // 인증 상태 변화 감지 리스너 추가 (세션 갱신 및 데이터 유실 방지 강화)
             supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 if (session) {
                     currentUser = session.user;
@@ -475,8 +476,6 @@
             if (!currentUser) return;
             try {
                 let hasLoaded = false;
-                
-                // 💡 [핵심 수정] 로컬 저장소보다 Supabase DB를 항상 최우선으로 조회하여 데이터 동기화 보장
                 const { data, error } = await supabaseClient.from('study_data').select('*').eq('user_id', currentUser.id).single();
                 
                 if (data && data.study_parts) {
@@ -494,7 +493,6 @@
                         studyParts = parsed.study_parts || [];
                         folders = parsed.folders || [];
                         trashBin = parsed.trash_bin || [];
-                        // 로컬에 있던 백업 데이터를 다시 Supabase로 업로드하여 동기화
                         await saveStudyDataToDB();
                     }
                 }
@@ -1152,7 +1150,7 @@ ${part.patternText.substring(0, 15000)}
                         const response = await fetch('https://api.openai.com/v1/chat/completions', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${keyItem.api_key}` },
-                            body: JSON.stringify({ model: modelName, messages: [{ role: 'user', content: prompt }] })
+                            body: JSON.stringify({ model: modelName, messages: [{ role: 'user', content: prompt }], max_tokens: 4000 })
                         });
                         const data = await response.json();
                         if (response.ok && data.choices && data.choices[0]) {
@@ -1720,12 +1718,13 @@ ${part.patternText.substring(0, 15000)}
             if (progressInterval) clearInterval(progressInterval);
             wrapper.classList.remove('hidden');
             
-            const totalEstimatedSeconds = Math.max(10, Math.round(8 + (parseInt(quizCount) * 0.4)));
+            const countNum = parseInt(quizCount);
+            const totalEstimatedSeconds = countNum === 100 ? 55 : Math.max(10, Math.round(8 + (countNum * 0.4)));
             let elapsedSeconds = 0;
 
             fill.style.width = '5%';
             percentText.textContent = `5% (남은 시간: 약 ${totalEstimatedSeconds}초)`;
-            statusTextEl.textContent = `🤖 맞춤형 문제 생성 중...`;
+            statusTextEl.textContent = countNum === 100 ? `🤖 100문항 심층 분할 생성 중 (전 영역 골고루)...` : `🤖 맞춤형 문제 생성 중...`;
 
             progressInterval = setInterval(() => {
                 elapsedSeconds++;
@@ -1749,7 +1748,8 @@ ${part.patternText.substring(0, 15000)}
         async function generateQuizFromLearnedData() {
             const targetPartId = parseInt(document.getElementById('target-part-select').value);
             const quizType = document.getElementById('quiz-type-select').value;
-            const quizCount = document.getElementById('quiz-count-select').value;
+            const quizCountSelect = document.getElementById('quiz-count-select').value;
+            const targetTotalCount = parseInt(quizCountSelect);
             const wrapper = document.getElementById('quiz-loading-wrapper');
 
             if (!targetPartId) {
@@ -1771,64 +1771,78 @@ ${part.patternText.substring(0, 15000)}
                 return;
             }
 
-            startTimerProgress(quizCount);
+            startTimerProgress(targetTotalCount);
             let lastErrorMessage = "";
 
             try {
-                let quizResult = null;
+                let allGeneratedQuestions = [];
                 let usedKeyInfo = null;
                 let matchedModelName = "";
 
                 let textChunk = targetPart.text;
-                if (textChunk.length > 25000) {
-                    textChunk = textChunk.substring(0, 25000);
-                }
+                
+                // 💡 [핵심] 100문항일 경우 토큰 끊김을 막기 위해 25문항씩 총 4번(Batch) 나누어 전 영역 골고루 생성 후 병합
+                let batchSize = targetTotalCount === 100 ? 25 : targetTotalCount;
+                let iterations = targetTotalCount === 100 ? 4 : 1;
 
-                let previousQuestionsList = [];
-                if (targetPart.quizzes && targetPart.quizzes.length > 0) {
-                    targetPart.quizzes.forEach(q => {
-                        const parsed = parseQuizTextToStructured(q.result);
-                        parsed.forEach(item => {
-                            if (item.question) previousQuestionsList.push(item.question.substring(0, 30));
-                        });
+                for (let iter = 0; iter < iterations; iter++) {
+                    let quizResult = null;
+
+                    let previousQuestionsList = [];
+                    allGeneratedQuestions.forEach(item => {
+                        if (item.question) previousQuestionsList.push(item.question.substring(0, 30));
                     });
-                }
-                const previousQuestionsContext = previousQuestionsList.length > 0 
-                    ? `[⚠️ 중복 출제 절대 금지 목록]\n다음은 이전에 출제했던 문제들의 지문입니다. 이번에는 아래 문제들과 주제나 내용이 겹치지 않는 완전히 새로운 영역에서 문제를 출제하세요:\n- ${previousQuestionsList.join('\n- ')}`
-                    : '';
+                    if (targetPart.quizzes && targetPart.quizzes.length > 0) {
+                        targetPart.quizzes.forEach(q => {
+                            const parsed = parseQuizTextToStructured(q.result);
+                            parsed.forEach(item => {
+                                if (item.question) previousQuestionsList.push(item.question.substring(0, 30));
+                            });
+                        });
+                    }
 
-                for (let i = 0; i < keys.length; i++) {
-                    const keyItem = keys[i];
-                    if (exhaustedKeysCache[keyItem.id]) continue;
+                    const previousQuestionsContext = previousQuestionsList.length > 0 
+                        ? `[⚠️ 중복 출제 절대 금지 목록]\n다음은 이전에 출제했던 문제들의 지문입니다. 이번에는 아래 문제들과 주제나 내용이 겹치지 않는 완전히 새로운 영역에서 문제를 출제하세요:\n- ${previousQuestionsList.join('\n- ')}`
+                        : '';
 
-                    try {
-                        let patternGuideline = "";
-                        if (targetPart.isAnalyzed && targetPart.analysisResult) {
-                            patternGuideline = `
+                    for (let i = 0; i < keys.length; i++) {
+                        const keyItem = keys[i];
+                        if (exhaustedKeysCache[keyItem.id]) continue;
+
+                        try {
+                            let patternGuideline = "";
+                            if (targetPart.isAnalyzed && targetPart.analysisResult) {
+                                patternGuideline = `
 [⭐ 출제 형식/스타일 참고 가이드라인]
 ${targetPart.analysisResult}
-                            `;
-                        }
+                                `;
+                            }
 
-                        let typeSpecificInstruction = "";
-                        if (quizType === 'multiple') {
-                            typeSpecificInstruction = `
+                            let typeSpecificInstruction = "";
+                            if (quizType === 'multiple') {
+                                typeSpecificInstruction = `
 [🎯 [고급 5지선다 객관식] 출제 지침]
 - 계산 및 수치형, 비교 대조형, 임상 응용형 문제를 골고루 포함하세요. 교재 목차나 행정적 질문은 절대 금지합니다.
-                            `;
-                        } else if (quizType === 'ox') {
-                            typeSpecificInstruction = `
+                                `;
+                            } else if (quizType === 'ox') {
+                                typeSpecificInstruction = `
 [🎯 [O/X 퀴즈] 출제 지침]
 - 명확한 사실 관계나 전공 지식의 참/거짓을 판별하는 문제를 출제하세요. options는 ["O", "X"]로 구성하세요.
-                            `;
-                        }
+                                `;
+                            }
 
-                        const prompt = `
-당신은 최고급 의학·방사선 및 PACS 전공 국가고시 출제 위원입니다. 제공된 학습용 PDF 문서 텍스트들을 바탕으로 퀴즈 ${quizCount}문항을 생성해 주세요.
+                            let batchSectionHint = targetTotalCount === 100 
+                                ? `[⭐ 100문항 심층 분할 출제 지침 (${iter + 1}/4 회차)]\n문서의 전체 내용 중 ${iter === 0 ? '초반부(앞부분)' : iter === 1 ? '중전반부' : iter === 2 ? '중후반부' : '후반부(끝부분)'} 영역에서 세부적이고 지엽적인 핵심 개념을 위주로 빠짐없이 골고루 출제하세요.`
+                                : '';
+
+                            const prompt = `
+당신은 최고급 의학·방사선 및 PACS 전공 국가고시 출제 위원입니다. 제공된 학습용 PDF 문서 텍스트들을 바탕으로 퀴즈 ${batchSize}문항을 생성해 주세요.
 
 [🚨 절대 금지 필터 규칙 (메타 및 행정 정보 배제)]
 1. "몇 장인가요?", "어떤 단원 차시인가요?" 같은 **교재 구조, 목차, 주차별 순서에 대한 질문은 100% 절대 출제하지 마세요.**
 2. 담당 교수 성함, 학교 행정 정보 등도 절대 출제 금지합니다.
+
+${batchSectionHint}
 
 ${typeSpecificInstruction}
 
@@ -1866,31 +1880,41 @@ ${patternGuideline}
 - 가, 나, 다, 라 예시 조건이 필요 없는 일반 문항은 'examples' 배열을 빈 배열 []로 두세요.
 - 'answer'는 정답 인덱스 번호입니다.
 - 'explanations' 배열의 길이는 'options' 배열의 개수와 정확히 일치해야 합니다.
-- 문항 수: 정확히 ${quizCount}문항.
+- 문항 수: 정확히 ${batchSize}문항.
 
 [학습 문서 전체 내용]
-${textChunk}
-                        `;
+${textChunk.substring(0, 25000)}
+                            `;
 
-                        const res = await callAIWithKeyGeneric(keyItem, prompt);
-                        if (res && res.text) {
-                            quizResult = res.text;
-                            matchedModelName = res.modelName;
-                            usedKeyInfo = keyItem;
-                            break;
+                            const res = await callAIWithKeyGeneric(keyItem, prompt);
+                            if (res && res.text) {
+                                quizResult = res.text;
+                                matchedModelName = res.modelName;
+                                usedKeyInfo = keyItem;
+                                break;
+                            }
+                        } catch (err) {
+                            lastErrorMessage = err.message;
+                            if (err.message.includes("no credits remaining") || err.message.includes("RESOURCE_EXHAUSTED") || err.message.includes("insufficient_quota") || err.message.includes("credit")) {
+                                exhaustedKeysCache[keyItem.id] = true;
+                            }
                         }
-                    } catch (err) {
-                        lastErrorMessage = err.message;
-                        if (err.message.includes("no credits remaining") || err.message.includes("RESOURCE_EXHAUSTED") || err.message.includes("insufficient_quota") || err.message.includes("credit")) {
-                            exhaustedKeysCache[keyItem.id] = true;
-                        }
+                    }
+
+                    if (!quizResult) {
+                        throw new Error(lastErrorMessage || "모든 키와 모델이 소진되었습니다.");
+                    }
+
+                    const parsedBatch = parseQuizTextToStructured(quizResult);
+                    if (parsedBatch && parsedBatch.length > 0) {
+                        allGeneratedQuestions = allGeneratedQuestions.concat(parsedBatch);
                     }
                 }
 
                 finishTimerProgress();
 
-                if (!quizResult) {
-                    alert(`❌ 퀴즈 생성 실패\n원인: ${lastErrorMessage || "모든 키와 모델이 소진되었습니다."}`);
+                if (allGeneratedQuestions.length === 0) {
+                    alert(`❌ 퀴즈 생성 실패\n원인: 생성된 문항이 없습니다.`);
                     loadApiKeys();
                     return;
                 }
@@ -1898,12 +1922,14 @@ ${textChunk}
                 activeModelNames[usedKeyInfo.id] = matchedModelName;
                 loadApiKeys();
 
+                const finalQuizJsonString = JSON.stringify({ questions: allGeneratedQuestions }, null, 2);
+
                 const newQuizId = Date.now();
                 const newQuizObj = {
                     id: newQuizId,
-                    count: quizCount,
+                    count: targetTotalCount,
                     type: quizType,
-                    result: quizResult,
+                    result: finalQuizJsonString,
                     hasCompleted: false,
                     resultHtml: null
                 };
